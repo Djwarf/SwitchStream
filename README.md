@@ -2,21 +2,21 @@
 
 A modern Android client for [Jellyfin](https://jellyfin.org/) media servers, built with Kotlin and Jetpack Compose.
 
-Browse, search, and stream your personal media library from your Jellyfin server — on your phone, tablet, or Android TV.
+Browse, search, and stream your personal media library from your Jellyfin server on your phone, tablet, or Android TV.
 
 ![SwitchStream Home Screen](screenshot.png)
 
 ## Features
 
-- **Connect to your Jellyfin server** — enter your server URL and sign in
-- **Browse libraries** — view your media collections with filtering and sorting
-- **Search** — full-text search across all content
-- **Stream video** — adaptive HLS and direct playback via ExoPlayer
-- **Playback controls** — speed adjustment, audio/subtitle track selection, seek controls
-- **Series support** — episode browsing with auto-play next episode
-- **Favorites & History** — bookmark media and resume where you left off
-- **Android TV** — optimized for Leanback with focus-based navigation
-- **Privacy-first** — no analytics, no tracking, no data collection
+- **Connect to your Jellyfin server**: enter your server URL and sign in
+- **Browse libraries**: view your media collections with filtering and sorting
+- **Search**: full-text search across all content
+- **Stream video**: adaptive HLS and direct playback via ExoPlayer
+- **Playback controls**: speed adjustment, audio/subtitle track selection, seek controls
+- **Series support**: episode browsing with auto-play next episode
+- **Favorites & History**: bookmark media and resume where you left off
+- **Android TV**: optimized for Leanback with focus-based navigation
+- **Privacy-first**: no analytics, no tracking, no data collection
 
 ## Tech Stack
 
