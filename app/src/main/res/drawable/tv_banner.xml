@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Dark background -->
+    <path
+        android:pathData="M0,0h320v180H0z"
+        android:fillColor="#0D0D1A" />
+
+    <!-- Subtle burgundy border -->
+    <path
+        android:pathData="M0,0h320v180H0z"
+        android:fillColor="#00000000"
+        android:strokeColor="#8B1A1A"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.5" />
+
+    <!-- White chevrons (top-left region) -->
+    <path
+        android:pathData="M88.1,20 L174.4,51.6 L88.1,83.3"
+        android:strokeWidth="9.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <path
+        android:pathData="M120.7,20 L207,51.6 L120.7,83.3"
+        android:strokeWidth="9.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.45"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- Burgundy chevrons (bottom-right region) -->
+    <path
+        android:pathData="M232,96.7 L145.6,128.4 L232,160"
+        android:strokeWidth="9.6"
+        android:strokeColor="#8B1A1A"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <path
+        android:pathData="M199.3,96.7 L113,128.4 L199.3,160"
+        android:strokeWidth="9.6"
+        android:strokeColor="#8B1A1A"
+        android:strokeAlpha="0.45"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
