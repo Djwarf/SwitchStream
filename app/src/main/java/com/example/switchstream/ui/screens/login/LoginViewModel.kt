@@ -2,6 +2,7 @@ package com.example.switchstream.ui.screens.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.switchstream.data.CachedUser
 import com.example.switchstream.data.SessionManager
 import com.example.switchstream.data.repository.AuthRepository
 import com.example.switchstream.di.AppContainer
@@ -20,10 +21,11 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val serverName: String = "",
-    val activeTab: LoginTab = LoginTab.PASSWORD,
+    val activeTab: LoginTab = LoginTab.QUICK_CONNECT,
     val quickConnectCode: String? = null,
     val quickConnectAvailable: Boolean = true,
-    val quickConnectPolling: Boolean = false
+    val quickConnectPolling: Boolean = false,
+    val cachedUsers: List<CachedUser> = emptyList()
 )
 
 enum class LoginTab { PASSWORD, QUICK_CONNECT }
@@ -41,6 +43,34 @@ class LoginViewModel(
     private var quickConnectSecret: String? = null
 
     private val authRepo: AuthRepository = container.createAuthRepository()
+
+    init {
+        loadCachedUsers()
+        startQuickConnect()
+    }
+
+    private fun loadCachedUsers() {
+        viewModelScope.launch {
+            val users = sessionManager.getCachedUsers(container.serverUrl)
+            _uiState.value = _uiState.value.copy(cachedUsers = users)
+        }
+    }
+
+    fun switchToCachedUser(user: CachedUser, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            container.setAuthenticated(user.serverUrl, user.authToken, UUID.fromString(user.userId))
+            sessionManager.saveSession(
+                serverUrl = user.serverUrl,
+                authToken = user.authToken,
+                userId = user.userId,
+                serverName = _uiState.value.serverName,
+                username = user.username
+            )
+            _uiState.value = _uiState.value.copy(isLoading = false)
+            onSuccess()
+        }
+    }
 
     fun updateUsername(value: String) {
         _uiState.value = _uiState.value.copy(username = value, error = null)
@@ -71,12 +101,20 @@ class LoginViewModel(
                 onSuccess = { result ->
                     val token = result.accessToken ?: ""
                     val userId = result.user?.id ?: UUID.randomUUID()
+                    val username = result.user?.name ?: state.username
                     container.setAuthenticated(container.serverUrl, token, userId)
                     sessionManager.saveSession(
                         serverUrl = container.serverUrl,
                         authToken = token,
                         userId = userId.toString(),
-                        serverName = state.serverName
+                        serverName = state.serverName,
+                        username = username
+                    )
+                    sessionManager.cacheUser(
+                        serverUrl = container.serverUrl,
+                        authToken = token,
+                        userId = userId.toString(),
+                        username = username
                     )
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     onSuccess()
@@ -137,12 +175,20 @@ class LoginViewModel(
             onSuccess = { result ->
                 val token = result.accessToken ?: ""
                 val userId = result.user?.id ?: UUID.randomUUID()
+                val username = result.user?.name ?: ""
                 container.setAuthenticated(container.serverUrl, token, userId)
                 sessionManager.saveSession(
                     serverUrl = container.serverUrl,
                     authToken = token,
                     userId = userId.toString(),
-                    serverName = _uiState.value.serverName
+                    serverName = _uiState.value.serverName,
+                    username = username
+                )
+                sessionManager.cacheUser(
+                    serverUrl = container.serverUrl,
+                    authToken = token,
+                    userId = userId.toString(),
+                    username = username
                 )
                 _uiState.value = _uiState.value.copy(quickConnectPolling = false)
             },

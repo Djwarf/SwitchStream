@@ -56,18 +56,18 @@ fun ConnectScreen(
             // Glass form card
             Column(
                 modifier = Modifier
-                    .widthIn(max = 500.dp)
-                    .padding(48.dp)
+                    .widthIn(max = 480.dp)
+                    .padding(32.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(GlassSurface)
                     .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
-                    .padding(40.dp),
+                    .padding(36.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = "SwitchStream",
-                    style = MaterialTheme.typography.displayLarge,
+                    style = MaterialTheme.typography.headlineLarge,
                     color = TextPrimary,
                     textAlign = TextAlign.Center
                 )
@@ -85,7 +85,7 @@ fun ConnectScreen(
                 SwitchStreamTextField(
                     value = uiState.serverUrl,
                     onValueChange = viewModel::updateServerUrl,
-                    label = "Server URL",
+                    label = "e.g. jellyfin.example.com",
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Go
@@ -108,7 +108,8 @@ fun ConnectScreen(
 
                 FocusableButton(
                     text = "Connect",
-                    onClick = { viewModel.connect(onConnected) }
+                    onClick = { viewModel.connect(onConnected) },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

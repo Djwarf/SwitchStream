@@ -41,48 +41,32 @@ class HomeViewModel(
 
             libraryRepo.getLibraries().fold(
                 onSuccess = { libs ->
-                    _uiState.value = _uiState.value.copy(libraries = libs)
+                    // Fetch all sections, then batch into a single state update
+                    val continueWatching = libraryRepo.getResumeItems().getOrNull() ?: emptyList()
+                    val nextUp = libraryRepo.getNextUp(limit = 10).getOrNull() ?: emptyList()
+                    val suggestions = libraryRepo.getSuggestions(limit = 8).getOrNull() ?: emptyList()
+                    val recentlyAdded = libraryRepo.getRecentlyAdded(limit = 20).getOrNull() ?: emptyList()
+                    val favorites = libraryRepo.getFavorites(limit = 16).getOrNull() ?: emptyList()
 
-                    // Continue watching
-                    libraryRepo.getResumeItems().onSuccess { items ->
-                        _uiState.value = _uiState.value.copy(continueWatching = items)
-                    }
-
-                    // Next Up — next unwatched episodes across all shows
-                    libraryRepo.getNextUp(limit = 10).onSuccess { nextUp ->
-                        _uiState.value = _uiState.value.copy(nextUp = nextUp)
-                    }
-
-                    // Featured hero — Jellyfin's recommendation engine for discovery
-                    libraryRepo.getSuggestions(limit = 8).onSuccess { suggestions ->
-                        _uiState.value = _uiState.value.copy(featuredItems = suggestions)
-                    }.onFailure {
-                        // Fallback: use latest items from first library
-                        val fallback = uiState.value.latestByLibrary.values
-                            .flatten().take(8)
-                        if (fallback.isNotEmpty()) {
-                            _uiState.value = _uiState.value.copy(featuredItems = fallback)
-                        }
-                    }
-
-                    // Recently added across all libraries
-                    libraryRepo.getRecentlyAdded(limit = 20).onSuccess { items ->
-                        _uiState.value = _uiState.value.copy(recentlyAdded = items)
-                    }
-
-                    // My Favorites
-                    libraryRepo.getFavorites(limit = 16).onSuccess { items ->
-                        _uiState.value = _uiState.value.copy(favorites = items)
-                    }
-
-                    // Latest media per library
                     val latestMap = mutableMapOf<UUID, List<BaseItemDto>>()
                     for (lib in libs) {
                         libraryRepo.getLatestMedia(lib.id).onSuccess { items ->
                             latestMap[lib.id] = items
                         }
                     }
+
+                    // Fallback for featured items if suggestions API fails
+                    val featured = suggestions.ifEmpty {
+                        latestMap.values.flatten().take(8)
+                    }
+
                     _uiState.value = _uiState.value.copy(
+                        libraries = libs,
+                        continueWatching = continueWatching,
+                        nextUp = nextUp,
+                        featuredItems = featured,
+                        recentlyAdded = recentlyAdded,
+                        favorites = favorites,
                         latestByLibrary = latestMap,
                         isLoading = false
                     )

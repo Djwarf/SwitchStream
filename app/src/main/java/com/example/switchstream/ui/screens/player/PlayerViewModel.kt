@@ -8,12 +8,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.example.switchstream.data.PlaybackSettings
 import com.example.switchstream.data.SettingsManager
 import com.example.switchstream.data.model.MediaTrackInfo
 import com.example.switchstream.data.model.TrackType
+import com.example.switchstream.data.repository.IntroTimestamps
 import com.example.switchstream.data.repository.LibraryRepository
 import com.example.switchstream.data.repository.PlaybackRepository
 import kotlinx.coroutines.delay
@@ -41,7 +43,9 @@ data class PlayerUiState(
     val showSpeedDialog: Boolean = false,
     val nextEpisode: BaseItemDto? = null,
     val showUpNext: Boolean = false,
-    val upNextCountdown: Int = 30
+    val upNextCountdown: Int = 30,
+    val showSkipIntro: Boolean = false,
+    val showSkipCredits: Boolean = false
 )
 
 enum class TrackDialogType { AUDIO, SUBTITLE }
@@ -59,13 +63,27 @@ class PlayerViewModel(
     private val _uiState = MutableStateFlow(PlayerUiState(title = title))
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
-    val player: ExoPlayer = ExoPlayer.Builder(context).build()
+    val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setLoadControl(
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    /* minBufferMs = */ 15_000,
+                    /* maxBufferMs = */ 60_000,
+                    /* bufferForPlaybackMs = */ 2_500,
+                    /* bufferForPlaybackAfterRebufferMs = */ 5_000
+                )
+                .build()
+        )
+        .build()
     private val mediaSession: MediaSession = MediaSession.Builder(context, player).build()
 
     private var seekForwardMs: Long = 10_000L
     private var seekBackMs: Long = 10_000L
     private var autoPlayNext: Boolean = true
     private var upNextDismissed: Boolean = false
+    private var introTimestamps: IntroTimestamps? = null
+    private var introSkipped: Boolean = false
+    private var creditsSkipped: Boolean = false
 
     var onPlayNextEpisode: ((UUID) -> Unit)? = null
 
@@ -74,6 +92,7 @@ class PlayerViewModel(
         setupPlayer()
         loadMediaTracks()
         loadNextEpisode()
+        loadIntroTimestamps()
         startPositionTracking()
     }
 
@@ -146,6 +165,30 @@ class PlayerViewModel(
         }
     }
 
+    private fun loadIntroTimestamps() {
+        viewModelScope.launch {
+            playbackRepo.getIntroTimestamps(itemId).onSuccess { timestamps ->
+                introTimestamps = timestamps
+            }
+        }
+    }
+
+    fun skipIntro() {
+        val endMs = introTimestamps?.introEndMs ?: return
+        player.seekTo(endMs)
+        introSkipped = true
+        _uiState.value = _uiState.value.copy(showSkipIntro = false)
+    }
+
+    fun skipCredits() {
+        creditsSkipped = true
+        _uiState.value = _uiState.value.copy(showSkipCredits = false)
+        // If there's a next episode, play it; otherwise just dismiss
+        if (_uiState.value.nextEpisode != null) {
+            playNextEpisode()
+        }
+    }
+
     private fun loadNextEpisode() {
         if (seriesId == null) return
         viewModelScope.launch {
@@ -166,9 +209,21 @@ class PlayerViewModel(
                 val currentPos = player.currentPosition.coerceAtLeast(0)
                 val duration = player.duration.coerceAtLeast(0)
 
+                // Skip intro/credits visibility
+                val intro = introTimestamps
+                val showIntro = intro?.introEndMs != null
+                    && !introSkipped
+                    && currentPos < intro.introEndMs
+                    && currentPos > 2000 // Show after 2s into playback
+                val showCredits = intro?.creditsStartMs != null
+                    && !creditsSkipped
+                    && currentPos >= intro.creditsStartMs
+
                 _uiState.value = _uiState.value.copy(
                     currentPosition = currentPos,
-                    duration = duration
+                    duration = duration,
+                    showSkipIntro = showIntro,
+                    showSkipCredits = showCredits
                 )
 
                 // Up Next logic

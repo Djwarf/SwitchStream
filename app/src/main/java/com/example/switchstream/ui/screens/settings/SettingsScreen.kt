@@ -16,17 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Logout
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
+import androidx.compose.material.icons.outlined.PictureInPicture
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,8 +54,7 @@ import com.example.switchstream.ui.theme.TextTertiary
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onSignOut: () -> Unit,
-    onSwitchServer: () -> Unit
+    onSwitchServer: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playback = uiState.playbackSettings
@@ -86,79 +82,8 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Server + Account card
-        item {
-            GlassCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // User avatar circle
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(AccentBlue.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Person,
-                            contentDescription = "User avatar",
-                            tint = AccentBlue,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(20.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = uiState.username.ifEmpty { "User" },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = uiState.serverName.ifEmpty { "Jellyfin Server" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = uiState.serverUrl,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextTertiary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FocusableButton(
-                            text = "Switch Server",
-                            onClick = {
-                                viewModel.switchServer()
-                                onSwitchServer()
-                            },
-                            isPrimary = false
-                        )
-                        FocusableButton(
-                            text = "Sign Out",
-                            onClick = {
-                                viewModel.signOut()
-                                onSignOut()
-                            },
-                            isPrimary = false
-                        )
-                    }
-                }
-            }
-        }
-
         // Playback section title
         item {
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Playback",
                 style = MaterialTheme.typography.titleLarge,
@@ -216,6 +141,39 @@ fun SettingsScreen(
                 value = if (playback.autoPlayNextEpisode) "On" else "Off",
                 valueColor = if (playback.autoPlayNextEpisode) AccentBlue else TextSecondary,
                 onClick = { viewModel.updateAutoPlayNext(!playback.autoPlayNextEpisode) }
+            )
+        }
+
+        // Picture-in-Picture
+        item {
+            SettingsTile(
+                icon = Icons.Outlined.PictureInPicture,
+                label = "Picture-in-Picture",
+                value = if (playback.pictureInPictureEnabled) "On" else "Off",
+                valueColor = if (playback.pictureInPictureEnabled) AccentBlue else TextSecondary,
+                onClick = { viewModel.updatePipEnabled(!playback.pictureInPictureEnabled) }
+            )
+        }
+
+        // Server section
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Server",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+
+        item {
+            SettingsTile(
+                icon = Icons.Outlined.Dns,
+                label = "Switch Server",
+                value = "",
+                onClick = {
+                    viewModel.switchServer()
+                    onSwitchServer()
+                }
             )
         }
 

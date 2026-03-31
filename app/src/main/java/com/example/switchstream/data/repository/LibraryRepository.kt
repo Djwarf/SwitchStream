@@ -73,6 +73,19 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
         Pair(content.items.orEmpty(), content.totalRecordCount ?: 0)
     }
 
+    suspend fun getItemsByPerson(personId: UUID, limit: Int = 50): Result<List<BaseItemDto>> = runCatching {
+        val response = apiClient.itemsApi.getItems(
+            userId = userId,
+            personIds = listOf(personId),
+            recursive = true,
+            limit = limit,
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+            sortBy = listOf(ItemSortBy.PRODUCTION_YEAR),
+            sortOrder = listOf(SortOrder.DESCENDING)
+        )
+        response.content.items.orEmpty()
+    }
+
     suspend fun getItemDetail(itemId: UUID): Result<BaseItemDto> = runCatching {
         val response = apiClient.userLibraryApi.getItem(
             userId = userId,

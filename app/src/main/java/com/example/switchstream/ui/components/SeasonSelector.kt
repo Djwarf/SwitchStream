@@ -38,7 +38,7 @@ fun SeasonSelector(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
-        itemsIndexed(seasons) { index, season ->
+        itemsIndexed(seasons, key = { _, season -> season.id }) { index, season ->
             val isSelected = index == selectedIndex
             var isFocused by remember { mutableStateOf(false) }
 

@@ -1,6 +1,9 @@
 package com.example.switchstream
 
+import android.app.PictureInPictureParams
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -23,6 +26,22 @@ import kotlinx.coroutines.flow.firstOrNull
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+
+    var isInPlayer: Boolean = false
+    var pipEnabled: Boolean = false
+
+    fun enterPipIfEnabled(): Boolean {
+        if (!isInPlayer || !pipEnabled) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+            )
+            return true
+        }
+        return false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

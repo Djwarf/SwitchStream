@@ -3,7 +3,9 @@ package com.example.switchstream.ui.screens.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -25,6 +27,7 @@ import com.example.switchstream.ui.components.EmptyState
 import com.example.switchstream.ui.components.ErrorState
 import com.example.switchstream.ui.components.HeroCarousel
 import com.example.switchstream.ui.components.LoadingIndicator
+import com.example.switchstream.ui.components.ShimmerHomeScreen
 import com.example.switchstream.ui.components.SectionHeader
 import com.example.switchstream.ui.theme.PureBlack
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -44,7 +47,7 @@ fun HomeScreen(
             .background(PureBlack.copy(alpha = 0.75f))
     ) {
         when {
-            uiState.isLoading -> LoadingIndicator()
+            uiState.isLoading -> ShimmerHomeScreen()
             uiState.error != null -> ErrorState(
                 message = uiState.error!!,
                 onRetry = viewModel::refresh
@@ -80,9 +83,9 @@ private fun HomeContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 48.dp)
     ) {
-        // Hero Carousel — full-bleed, immersive
+        // Hero Carousel
         if (uiState.featuredItems.isNotEmpty()) {
-            item {
+            item(key = "hero_carousel") {
                 HeroCarousel(
                     items = uiState.featuredItems,
                     imageRepo = imageRepo,

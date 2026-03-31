@@ -5,6 +5,7 @@ import com.example.switchstream.data.model.TrackType
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
+import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackOrder
@@ -51,6 +52,40 @@ class PlaybackRepository(
                 type = trackType
             )
         }
+    }
+
+    /**
+     * Returns intro end timestamp in ms, or null if no intro chapter found.
+     * Checks Jellyfin chapter markers for "Introduction" or "Intro" chapters.
+     */
+    suspend fun getIntroTimestamps(itemId: UUID): Result<IntroTimestamps?> = runCatching {
+        val response = apiClient.userLibraryApi.getItem(
+            itemId = itemId,
+            userId = userId
+        )
+        val chapters = response.content.chapters.orEmpty()
+
+        var introEnd: Long? = null
+        var creditsStart: Long? = null
+
+        for ((index, chapter) in chapters.withIndex()) {
+            val name = chapter.name?.lowercase() ?: ""
+            val startTicks = chapter.startPositionTicks ?: 0
+
+            if (name.contains("intro") || name.contains("introduction") || name.contains("opening")) {
+                // Intro end is the start of the next chapter
+                val nextChapter = chapters.getOrNull(index + 1)
+                introEnd = (nextChapter?.startPositionTicks ?: startTicks)  / 10_000
+            }
+
+            if (name.contains("credit") || name.contains("outro") || name.contains("ending")) {
+                creditsStart = startTicks / 10_000
+            }
+        }
+
+        if (introEnd != null || creditsStart != null) {
+            IntroTimestamps(introEndMs = introEnd, creditsStartMs = creditsStart)
+        } else null
     }
 
     suspend fun reportPlaybackStart(itemId: UUID): Result<Unit> = runCatching {
@@ -102,3 +137,8 @@ class PlaybackRepository(
         Unit
     }
 }
+
+data class IntroTimestamps(
+    val introEndMs: Long?,
+    val creditsStartMs: Long?
+)

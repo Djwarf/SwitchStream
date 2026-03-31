@@ -23,4 +23,8 @@ sealed class Screen(val route: String) {
     data object Settings : Screen("settings")
     data object History : Screen("history")
     data object Favorites : Screen("favorites")
+    data object Users : Screen("users")
+    data object Person : Screen("person/{personId}/{personName}") {
+        fun createRoute(personId: String, personName: String) = "person/$personId/$personName"
+    }
 }

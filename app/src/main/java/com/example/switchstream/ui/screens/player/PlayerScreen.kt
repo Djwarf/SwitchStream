@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ClosedCaption
@@ -32,10 +33,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.switchstream.MainActivity
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.example.switchstream.ui.components.FocusableButton
 import com.example.switchstream.ui.components.PlaybackSpeedSelector
 import com.example.switchstream.ui.components.TrackSelectionDialog
 import com.example.switchstream.ui.components.UpNextOverlay
@@ -55,6 +59,7 @@ fun PlayerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    val activity = LocalContext.current as? MainActivity
 
     DisposableEffect(Unit) {
         onDispose {
@@ -91,6 +96,8 @@ fun PlayerScreen(
                     KeyEvent.KEYCODE_BACK -> {
                         if (uiState.showTrackDialog != null || uiState.showSpeedDialog) {
                             viewModel.dismissDialogs()
+                        } else if (activity?.enterPipIfEnabled() == true) {
+                            // Entered PiP, don't navigate back
                         } else {
                             viewModel.stopPlayback()
                             onBack()
@@ -271,6 +278,36 @@ fun PlayerScreen(
                 currentSpeed = uiState.playbackSpeed,
                 onSelect = { speed -> viewModel.setPlaybackSpeed(speed) },
                 onDismiss = { viewModel.dismissDialogs() }
+            )
+        }
+
+        // Skip Intro button
+        AnimatedVisibility(
+            visible = uiState.showSkipIntro,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 32.dp, bottom = 120.dp)
+        ) {
+            FocusableButton(
+                text = "Skip Intro",
+                onClick = { viewModel.skipIntro() }
+            )
+        }
+
+        // Skip Credits button
+        AnimatedVisibility(
+            visible = uiState.showSkipCredits,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 32.dp, bottom = 120.dp)
+        ) {
+            FocusableButton(
+                text = "Skip Credits",
+                onClick = { viewModel.skipCredits() }
             )
         }
 

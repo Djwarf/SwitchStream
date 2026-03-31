@@ -119,7 +119,7 @@ fun TrackSelectionDialog(
                     }
                 }
 
-                itemsIndexed(tracks) { index, track ->
+                itemsIndexed(tracks, key = { index, _ -> index }) { index, track ->
                     val isSelected = index == selectedIndex
                     TrackRow(
                         label = track.title.ifEmpty { track.language ?: "Track ${index + 1}" },

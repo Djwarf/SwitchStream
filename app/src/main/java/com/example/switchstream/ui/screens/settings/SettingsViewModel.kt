@@ -9,6 +9,7 @@ import com.example.switchstream.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -60,6 +61,25 @@ class SettingsViewModel(
         }
     }
 
+    fun switchUser() {
+        viewModelScope.launch {
+            // Cache current session before switching
+            val currentSession = _uiState.value
+            if (currentSession.serverUrl.isNotEmpty()) {
+                val session = sessionManager.session.firstOrNull()
+                if (session != null) {
+                    sessionManager.cacheUser(
+                        serverUrl = session.serverUrl,
+                        authToken = session.authToken,
+                        userId = session.userId,
+                        username = session.username
+                    )
+                }
+            }
+            sessionManager.clearSession()
+        }
+    }
+
     fun updatePlaybackSpeed(speed: Float) {
         viewModelScope.launch { settingsManager.updatePlaybackSpeed(speed) }
     }
@@ -74,5 +94,9 @@ class SettingsViewModel(
 
     fun updateAutoPlayNext(enabled: Boolean) {
         viewModelScope.launch { settingsManager.updateAutoPlayNext(enabled) }
+    }
+
+    fun updatePipEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.updatePipEnabled(enabled) }
     }
 }

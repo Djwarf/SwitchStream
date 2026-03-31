@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
@@ -36,10 +38,12 @@ import com.example.switchstream.R
 import com.example.switchstream.ui.components.FocusableButton
 import com.example.switchstream.ui.components.LoadingIndicator
 import com.example.switchstream.ui.components.SwitchStreamTextField
+import com.example.switchstream.data.CachedUser
 import com.example.switchstream.ui.theme.AccentBlue
 import com.example.switchstream.ui.theme.ErrorRed
 import com.example.switchstream.ui.theme.GlassBorder
 import com.example.switchstream.ui.theme.GlassSurface
+import com.example.switchstream.ui.theme.GlassSurfaceLight
 import com.example.switchstream.ui.theme.TextPrimary
 import com.example.switchstream.ui.theme.TextSecondary
 import com.example.switchstream.ui.theme.TextTertiary
@@ -67,13 +71,13 @@ fun LoginScreen(
             Column(
                 modifier = Modifier
                     .widthIn(max = 480.dp)
-                    .padding(32.dp)
+                    .padding(24.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(GlassSurface)
                     .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
-                    .padding(36.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .padding(32.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = uiState.serverName,
@@ -89,7 +93,32 @@ fun LoginScreen(
                     color = TextPrimary
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                // Cached users (quick switch)
+                if (uiState.cachedUsers.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    uiState.cachedUsers.forEach { user ->
+                        FocusableButton(
+                            text = user.username,
+                            onClick = { viewModel.switchToCachedUser(user, onLoggedIn) },
+                            isPrimary = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "or sign in as a different user",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextTertiary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // Tab selector
                 if (uiState.quickConnectAvailable) {
@@ -111,7 +140,7 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
 
                 when (uiState.activeTab) {
@@ -167,11 +196,12 @@ private fun PasswordLoginContent(
             keyboardActions = KeyboardActions(onGo = { onLogin() })
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         FocusableButton(
             text = "Sign In",
-            onClick = onLogin
+            onClick = onLogin,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

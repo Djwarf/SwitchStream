@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "switchstream_session")
@@ -24,6 +25,13 @@ data class RecentServer(
     val name: String
 )
 
+data class CachedUser(
+    val serverUrl: String,
+    val authToken: String,
+    val userId: String,
+    val username: String
+)
+
 class SessionManager(private val context: Context) {
 
     private companion object {
@@ -33,6 +41,7 @@ class SessionManager(private val context: Context) {
         val SERVER_NAME = stringPreferencesKey("server_name")
         val USERNAME = stringPreferencesKey("username")
         val RECENT_SERVERS = stringPreferencesKey("recent_servers")
+        val CACHED_USERS = stringPreferencesKey("cached_users")
     }
 
     val session: Flow<SessionData?> = context.dataStore.data.map { prefs ->
@@ -81,6 +90,42 @@ class SessionManager(private val context: Context) {
         json.split("||").mapNotNull { entry ->
             val parts = entry.split("|", limit = 2)
             if (parts.size == 2) RecentServer(parts[0], parts[1]) else null
+        }
+    }
+
+    suspend fun cacheUser(serverUrl: String, authToken: String, userId: String, username: String) {
+        context.dataStore.edit { prefs ->
+            val existing = prefs[CACHED_USERS] ?: ""
+            val users = existing.split("|||").filter { it.isNotBlank() }.toMutableList()
+            // Remove existing entry for same user on same server
+            users.removeAll { entry ->
+                val parts = entry.split("||", limit = 4)
+                parts.size >= 3 && parts[0] == serverUrl && parts[2] == userId
+            }
+            users.add(0, "$serverUrl||$authToken||$userId||$username")
+            prefs[CACHED_USERS] = users.take(10).joinToString("|||")
+        }
+    }
+
+    suspend fun getCachedUsers(serverUrl: String): List<CachedUser> {
+        val raw = context.dataStore.data.map { it[CACHED_USERS] ?: "" }.first()
+        return raw.split("|||").filter { it.isNotBlank() }.mapNotNull { entry ->
+            val parts = entry.split("||", limit = 4)
+            if (parts.size >= 4 && parts[0] == serverUrl) {
+                CachedUser(parts[0], parts[1], parts[2], parts[3])
+            } else null
+        }
+    }
+
+    suspend fun clearCachedUsers(serverUrl: String) {
+        context.dataStore.edit { prefs ->
+            val existing = prefs[CACHED_USERS] ?: ""
+            val users = existing.split("|||").filter { it.isNotBlank() }.toMutableList()
+            users.removeAll { entry ->
+                val parts = entry.split("||", limit = 4)
+                parts.size >= 1 && parts[0] == serverUrl
+            }
+            prefs[CACHED_USERS] = users.joinToString("|||")
         }
     }
 

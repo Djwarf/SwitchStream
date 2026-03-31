@@ -20,7 +20,8 @@ data class PlaybackSettings(
     val seekBackSeconds: Int = 10,
     val autoPlayNextEpisode: Boolean = true,
     val preferredSubtitleLanguage: String = "",
-    val preferredAudioLanguage: String = ""
+    val preferredAudioLanguage: String = "",
+    val pictureInPictureEnabled: Boolean = false
 )
 
 class SettingsManager(private val context: Context) {
@@ -32,6 +33,7 @@ class SettingsManager(private val context: Context) {
         val AUTO_PLAY_NEXT = booleanPreferencesKey("auto_play_next")
         val SUBTITLE_LANG = stringPreferencesKey("subtitle_language")
         val AUDIO_LANG = stringPreferencesKey("audio_language")
+        val PIP_ENABLED = booleanPreferencesKey("pip_enabled")
     }
 
     val settings: Flow<PlaybackSettings> = context.settingsDataStore.data.map { prefs ->
@@ -41,7 +43,8 @@ class SettingsManager(private val context: Context) {
             seekBackSeconds = prefs[SEEK_BACK] ?: 10,
             autoPlayNextEpisode = prefs[AUTO_PLAY_NEXT] ?: true,
             preferredSubtitleLanguage = prefs[SUBTITLE_LANG] ?: "",
-            preferredAudioLanguage = prefs[AUDIO_LANG] ?: ""
+            preferredAudioLanguage = prefs[AUDIO_LANG] ?: "",
+            pictureInPictureEnabled = prefs[PIP_ENABLED] ?: false
         )
     }
 
@@ -67,5 +70,9 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updateAudioLanguage(language: String) {
         context.settingsDataStore.edit { it[AUDIO_LANG] = language }
+    }
+
+    suspend fun updatePipEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[PIP_ENABLED] = enabled }
     }
 }

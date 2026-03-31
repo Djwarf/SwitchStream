@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,7 @@ fun EpisodeRow(
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (isFocused) 1.03f else 1f)
 
     val episodeNumber = episode.indexNumber
     val runtimeMinutes = episode.runTimeTicks?.let { it / 600_000_000 }
@@ -67,8 +69,8 @@ fun EpisodeRow(
             .height(130.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .graphicsLayer {
-                scaleX = if (isFocused) 1.03f else 1f
-                scaleY = if (isFocused) 1.03f else 1f
+                scaleX = scale
+                scaleY = scale
             },
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
         colors = ClickableSurfaceDefaults.colors(

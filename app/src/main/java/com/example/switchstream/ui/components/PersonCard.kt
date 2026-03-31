@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ fun PersonCard(
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f)
 
     Surface(
         onClick = onClick,
@@ -49,8 +51,8 @@ fun PersonCard(
             .width(120.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .graphicsLayer {
-                scaleX = if (isFocused) 1.05f else 1f
-                scaleY = if (isFocused) 1.05f else 1f
+                scaleX = scale
+                scaleY = scale
             },
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
         colors = ClickableSurfaceDefaults.colors(

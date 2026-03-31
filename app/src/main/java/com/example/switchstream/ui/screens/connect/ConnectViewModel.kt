@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class ConnectUiState(
-    val serverUrl: String = "http://",
+    val serverUrl: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val serverName: String? = null
@@ -31,7 +31,7 @@ class ConnectViewModel(
 
     fun connect(onSuccess: () -> Unit) {
         val raw = _uiState.value.serverUrl.trimEnd('/')
-        if (raw.isBlank() || raw == "http://" || raw == "https://") {
+        if (raw.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Please enter a server address")
             return
         }

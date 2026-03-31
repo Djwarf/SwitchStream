@@ -28,6 +28,9 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -46,6 +49,7 @@ import com.example.switchstream.ui.components.EpisodeRow
 import com.example.switchstream.ui.components.ErrorState
 import com.example.switchstream.ui.components.FocusableButton
 import com.example.switchstream.ui.components.LoadingIndicator
+import com.example.switchstream.ui.components.ShimmerDetailScreen
 import com.example.switchstream.ui.components.PersonCard
 import com.example.switchstream.ui.components.SeasonSelector
 import com.example.switchstream.ui.components.SectionHeader
@@ -63,7 +67,7 @@ import org.jellyfin.sdk.model.api.PersonKind
 fun DetailScreen(
     viewModel: DetailViewModel,
     onPlayClick: (itemId: String) -> Unit,
-    onPersonClick: (String) -> Unit = {}
+    onPersonClick: (personId: String, personName: String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -73,7 +77,7 @@ fun DetailScreen(
             .background(PureBlack.copy(alpha = 0.75f))
     ) {
         when {
-            uiState.isLoading -> LoadingIndicator()
+            uiState.isLoading -> ShimmerDetailScreen()
             uiState.error != null -> ErrorState(
                 message = uiState.error!!,
                 onRetry = { viewModel.refresh() }
@@ -99,7 +103,7 @@ private fun DetailContent(
     onSeasonSelected: (Int) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
-    onPersonClick: (String) -> Unit
+    onPersonClick: (personId: String, personName: String) -> Unit
 ) {
     val item = uiState.item ?: return
 
@@ -292,13 +296,44 @@ private fun DetailContent(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Overview
+                // Tagline
+                if (!item.taglines.isNullOrEmpty()) {
+                    Text(
+                        text = "\u201C${item.taglines!!.first()}\u201D",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // Overview (expandable)
                 item.overview?.let { overview ->
+                    var expanded by remember { mutableStateOf(false) }
                     Text(
                         text = overview,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = if (expanded) Int.MAX_VALUE else 4,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
+                    if (overview.length > 200) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            onClick = { expanded = !expanded },
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = GlassSurface,
+                                focusedContainerColor = GlassSurface
+                            )
+                        ) {
+                            Text(
+                                text = if (expanded) "Show less" else "Show more",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AccentBlue,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Genres as pill chips
@@ -317,7 +352,7 @@ private fun DetailContent(
                     contentPadding = PaddingValues(horizontal = 56.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(genres) { genre ->
+                    items(genres, key = { it }) { genre ->
                         Box(
                             modifier = Modifier
                                 .background(
@@ -383,7 +418,7 @@ private fun DetailContent(
             }
 
             // Episode list
-            itemsIndexed(uiState.episodes) { _, episode ->
+            itemsIndexed(uiState.episodes, key = { _, ep -> ep.id }) { _, episode ->
                 EpisodeRow(
                     episode = episode,
                     imageUrl = imageRepo.getPrimaryImageUrl(episode.id),
@@ -391,65 +426,61 @@ private fun DetailContent(
                     modifier = Modifier.padding(horizontal = 56.dp, vertical = 4.dp)
                 )
             }
+        }
 
-            // Bottom spacing
+        // Cast & crew (for both movies and series)
+        val people = item.people.orEmpty()
+        if (people.isNotEmpty()) {
             item {
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionHeader(title = "Cast & Crew")
             }
-        } else {
-            // Cast & crew
-            val people = item.people.orEmpty()
-            if (people.isNotEmpty()) {
-                item {
-                    SectionHeader(title = "Cast & Crew")
-                }
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 56.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(people) { person ->
-                            val personImageUrl = person.id?.let { personId ->
-                                imageRepo.getPrimaryImageUrl(personId)
-                            }
-                            PersonCard(
-                                name = person.name ?: "",
-                                role = person.role,
-                                imageUrl = personImageUrl,
-                                onClick = { onPersonClick(person.name ?: "") }
-                            )
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 56.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(people, key = { it.id ?: it.hashCode() }) { person ->
+                        val personImageUrl = person.id?.let { personId ->
+                            imageRepo.getPrimaryImageUrl(personId)
                         }
+                        PersonCard(
+                            name = person.name ?: "",
+                            role = person.role,
+                            imageUrl = personImageUrl,
+                            onClick = { onPersonClick(person.id?.toString() ?: "", person.name ?: "") }
+                        )
                     }
                 }
             }
+        }
 
-            // Similar items
-            if (uiState.similarItems.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    SectionHeader(title = "Similar")
-                }
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 56.dp),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        items(uiState.similarItems) { similarItem ->
-                            EditorialCard(
-                                title = similarItem.name ?: "",
-                                imageUrl = imageRepo.getPrimaryImageUrl(similarItem.id),
-                                onClick = { onPlayClick(similarItem.id.toString()) },
-                                subtitle = similarItem.productionYear?.toString()
-                            )
-                        }
+        // Similar items (movies only)
+        if (!uiState.isSeries && uiState.similarItems.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionHeader(title = "Similar")
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 56.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    items(uiState.similarItems, key = { it.id }) { similarItem ->
+                        EditorialCard(
+                            title = similarItem.name ?: "",
+                            imageUrl = imageRepo.getPrimaryImageUrl(similarItem.id),
+                            onClick = { onPlayClick(similarItem.id.toString()) },
+                            subtitle = similarItem.productionYear?.toString()
+                        )
                     }
                 }
             }
+        }
 
-            // Bottom spacing
-            item {
-                Spacer(modifier = Modifier.height(48.dp))
-            }
+        // Bottom spacing
+        item {
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }

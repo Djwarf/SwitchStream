@@ -71,8 +71,8 @@ fun FocusableButton(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
         )
     }
 }

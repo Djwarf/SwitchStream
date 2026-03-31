@@ -6,9 +6,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -16,6 +22,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.switchstream.MainActivity
 import com.example.switchstream.SwitchStreamApp
 import com.example.switchstream.ui.components.MainScaffold
 import com.example.switchstream.ui.screens.connect.ConnectScreen
@@ -195,11 +202,45 @@ fun NavGraph(startDestination: String) {
                         } else ""
                         navController.navigate(Screen.Player.createRoute(id, title, seriesId))
                     },
-                    onPersonClick = { personName ->
-                        navController.navigate(Screen.Search.createRoute(Uri.encode(personName)))
+                    onPersonClick = { personId, personName ->
+                        if (personId.isNotEmpty()) {
+                            navController.navigate(
+                                Screen.Person.createRoute(personId, Uri.encode(personName))
+                            )
+                        }
                     }
                 )
             }
+        }
+
+        // Person filmography
+        composable(
+            route = Screen.Person.route,
+            arguments = listOf(
+                navArgument("personId") { type = NavType.StringType },
+                navArgument("personName") { type = NavType.StringType }
+            ),
+            enterTransition = { defaultEnter },
+            exitTransition = { defaultExit },
+            popEnterTransition = { defaultPopEnter },
+            popExitTransition = { defaultPopExit }
+        ) { backStackEntry ->
+            val personId = backStackEntry.arguments?.getString("personId") ?: ""
+            val personName = backStackEntry.arguments?.getString("personName") ?: ""
+            val vm = viewModel {
+                com.example.switchstream.ui.screens.person.PersonViewModel(
+                    libraryRepo = container.createLibraryRepository(),
+                    imageRepo = container.createImageRepository(),
+                    personId = UUID.fromString(personId),
+                    personName = personName
+                )
+            }
+            com.example.switchstream.ui.screens.person.PersonScreen(
+                viewModel = vm,
+                onItemClick = { itemId ->
+                    navController.navigate(Screen.Detail.createRoute(itemId))
+                }
+            )
         }
 
         composable(
@@ -258,11 +299,6 @@ fun NavGraph(startDestination: String) {
             ) {
                 SettingsScreen(
                     viewModel = vm,
-                    onSignOut = {
-                        navController.navigate(Screen.Connect.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
                     onSwitchServer = {
                         navController.navigate(Screen.Connect.route) {
                             popUpTo(0) { inclusive = true }
@@ -270,6 +306,68 @@ fun NavGraph(startDestination: String) {
                     }
                 )
             }
+        }
+
+        // Users screen (profile switcher)
+        composable(
+            route = Screen.Users.route,
+            enterTransition = { fadeIn(androidx.compose.animation.core.tween(300)) },
+            exitTransition = { fadeOut(androidx.compose.animation.core.tween(200)) },
+            popEnterTransition = { fadeIn(androidx.compose.animation.core.tween(300)) },
+            popExitTransition = { fadeOut(androidx.compose.animation.core.tween(200)) }
+        ) {
+            val scope = rememberCoroutineScope()
+            val sessionData by container.sessionManager.session.collectAsState(initial = null)
+            var cachedUsers by remember { mutableStateOf<List<com.example.switchstream.data.CachedUser>>(emptyList()) }
+
+            // Load cached users
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                // Cache current user first (read session directly, not from compose state)
+                val s = container.sessionManager.session.first()
+                if (s != null) {
+                    container.sessionManager.cacheUser(s.serverUrl, s.authToken, s.userId, s.username)
+                }
+                cachedUsers = container.sessionManager.getCachedUsers(container.serverUrl)
+            }
+
+            com.example.switchstream.ui.screens.users.UsersScreen(
+                cachedUsers = cachedUsers,
+                currentUserId = sessionData?.userId,
+                serverName = sessionData?.serverName ?: "Server",
+                onUserSelected = { user ->
+                    scope.launch {
+                        container.setAuthenticated(
+                            user.serverUrl,
+                            user.authToken,
+                            java.util.UUID.fromString(user.userId)
+                        )
+                        container.sessionManager.saveSession(
+                            serverUrl = user.serverUrl,
+                            authToken = user.authToken,
+                            userId = user.userId,
+                            serverName = sessionData?.serverName ?: "",
+                            username = user.username
+                        )
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                },
+                onAddUser = {
+                    scope.launch {
+                        val serverName = Uri.encode(sessionData?.serverName ?: "Server")
+                        // Cache current session before going to login
+                        val s = sessionData
+                        if (s != null) {
+                            container.sessionManager.cacheUser(s.serverUrl, s.authToken, s.userId, s.username)
+                        }
+                        container.sessionManager.clearSession()
+                        navController.navigate(Screen.Login.createRoute(serverName)) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            )
         }
 
         composable(
@@ -353,6 +451,20 @@ fun NavGraph(startDestination: String) {
                     title = title
                 )
             }
+            // Enable PiP when in player
+            val activity = context as? MainActivity
+            val pipSetting by container.settingsManager.settings.collectAsState(
+                initial = com.example.switchstream.data.PlaybackSettings()
+            )
+            DisposableEffect(Unit) {
+                activity?.isInPlayer = true
+                onDispose { activity?.isInPlayer = false }
+            }
+            // Keep activity PiP flag in sync with setting
+            androidx.compose.runtime.LaunchedEffect(pipSetting.pictureInPictureEnabled) {
+                activity?.pipEnabled = pipSetting.pictureInPictureEnabled
+            }
+
             vm.onPlayNextEpisode = { nextItemId ->
                 navController.navigate(
                     Screen.Player.createRoute(
@@ -380,9 +492,12 @@ private fun DrawerWrappedScreen(
     container: com.example.switchstream.di.AppContainer,
     content: @Composable () -> Unit
 ) {
+    val sessionData by container.sessionManager.session.collectAsState(initial = null)
+
     MainScaffold(
         currentRoute = currentRoute,
         libraries = libraries,
+        username = sessionData?.username ?: "",
         onNavigate = { route ->
             if (route != currentRoute) {
                 navController.navigate(route) {
