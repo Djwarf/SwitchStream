@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,7 +54,9 @@ fun EpisodeRow(
     episode: BaseItemDto,
     imageUrl: String?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    downloadState: com.example.switchstream.data.db.DownloadState? = null,
+    onDownloadClick: (() -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (isFocused) 1.03f else 1f)
@@ -63,11 +66,12 @@ fun EpisodeRow(
     val playedPercentage = episode.userData?.playedPercentage
     val isPlayed = episode.userData?.played == true
 
+    val dims = com.example.switchstream.ui.theme.LocalDimensions.current
     Surface(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(130.dp)
+            .height(dims.episodeRowHeight)
             .clickable { onClick() }
             .onFocusChanged { isFocused = it.isFocused }
             .graphicsLayer {
@@ -90,7 +94,7 @@ fun EpisodeRow(
             // Thumbnail
             Box(
                 modifier = Modifier
-                    .width(240.dp)
+                    .width(dims.episodeThumbWidth)
                     .fillMaxHeight()
             ) {
                 AsyncImage(
@@ -147,13 +151,22 @@ fun EpisodeRow(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                if (episodeNumber != null) {
+                // Episode number + runtime on one line
+                val metaLine = buildString {
+                    if (episodeNumber != null) append("E$episodeNumber")
+                    if (runtimeMinutes != null) {
+                        if (isNotEmpty()) append(" \u00b7 ")
+                        append("${runtimeMinutes}min")
+                    }
+                }
+                if (metaLine.isNotEmpty()) {
                     Text(
-                        text = "E$episodeNumber",
+                        text = metaLine,
                         style = MaterialTheme.typography.labelMedium,
-                        color = AccentBlue
+                        color = AccentBlue,
+                        maxLines = 1
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                 }
@@ -162,20 +175,11 @@ fun EpisodeRow(
                     text = episode.name ?: "",
                     style = MaterialTheme.typography.titleSmall,
                     color = TextPrimary,
-                    maxLines = 1,
+                    maxLines = if (dims.isTV) 1 else 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                if (runtimeMinutes != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "${runtimeMinutes} min",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary
-                    )
-                }
-
-                if (!episode.overview.isNullOrEmpty()) {
+                if (!episode.overview.isNullOrEmpty() && dims.isTV) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = episode.overview ?: "",
@@ -183,6 +187,38 @@ fun EpisodeRow(
                         color = TextSecondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Download icon (mobile/tablet only)
+            if (onDownloadClick != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .padding(end = 12.dp)
+                        .size(32.dp)
+                        .clickable { onDownloadClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when (downloadState) {
+                            com.example.switchstream.data.db.DownloadState.COMPLETE ->
+                                androidx.compose.material.icons.Icons.Filled.Check
+                            com.example.switchstream.data.db.DownloadState.DOWNLOADING,
+                            com.example.switchstream.data.db.DownloadState.QUEUED ->
+                                androidx.compose.material.icons.Icons.Outlined.CloudDownload
+                            else ->
+                                androidx.compose.material.icons.Icons.Outlined.CloudDownload
+                        },
+                        contentDescription = "Download episode",
+                        tint = when (downloadState) {
+                            com.example.switchstream.data.db.DownloadState.COMPLETE -> SuccessGreen
+                            com.example.switchstream.data.db.DownloadState.DOWNLOADING,
+                            com.example.switchstream.data.db.DownloadState.QUEUED -> AccentBlue.copy(alpha = 0.6f)
+                            else -> TextSecondary
+                        },
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

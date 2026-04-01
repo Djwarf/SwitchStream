@@ -28,7 +28,8 @@ data class DetailUiState(
     val isPlayed: Boolean = false,
     val downloadState: com.example.switchstream.data.db.DownloadState? = null,
     val downloadProgress: Float = 0f,
-    val showDeleteConfirm: Boolean = false
+    val showDeleteConfirm: Boolean = false,
+    val episodeDownloadStates: Map<String, com.example.switchstream.data.db.DownloadState> = emptyMap()
 )
 
 class DetailViewModel(
@@ -46,6 +47,7 @@ class DetailViewModel(
     init {
         loadDetail()
         observeDownloadState()
+        observeEpisodeDownloads()
     }
 
     private fun observeDownloadState() {
@@ -101,6 +103,52 @@ class DetailViewModel(
 
     fun dismissDeleteConfirm() {
         _uiState.value = _uiState.value.copy(showDeleteConfirm = false)
+    }
+
+    fun downloadEpisode(episode: org.jellyfin.sdk.model.api.BaseItemDto, silent: Boolean = false) {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            val epId = episode.id.toString()
+            val existing = downloadRepo.getDownload(epId)
+            if (existing?.downloadState == com.example.switchstream.data.db.DownloadState.COMPLETE ||
+                existing?.downloadState == com.example.switchstream.data.db.DownloadState.DOWNLOADING) return@launch
+
+            val streamUrl = "$serverUrl/Videos/${episode.id}/stream?static=true&mediaSourceId=${episode.id}"
+            val epName = buildString {
+                append(episode.seriesName ?: "")
+                val s = episode.parentIndexNumber
+                val e = episode.indexNumber
+                if (s != null && e != null) append(" S${s}E${e}")
+                append(" - ${episode.name ?: ""}")
+            }.trim()
+            downloadRepo.startDownload(
+                itemId = epId,
+                title = epName,
+                streamUrl = streamUrl,
+                thumbnailUrl = imageRepo.getPrimaryImageUrl(episode.id),
+                mediaType = "EPISODE",
+                seriesName = episode.seriesName,
+                accessToken = accessToken,
+                silent = silent
+            )
+        }
+    }
+
+    fun downloadSeason() {
+        if (downloadRepo == null) return
+        val episodes = _uiState.value.episodes
+        // Silent downloads for batch — no per-episode notifications
+        episodes.forEach { episode -> downloadEpisode(episode, silent = true) }
+    }
+
+    fun observeEpisodeDownloads() {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            downloadRepo.getAllDownloads().collect { downloads ->
+                val stateMap = downloads.associate { it.itemId to it.downloadState }
+                _uiState.value = _uiState.value.copy(episodeDownloadStates = stateMap)
+            }
+        }
     }
 
     private fun loadDetail() {

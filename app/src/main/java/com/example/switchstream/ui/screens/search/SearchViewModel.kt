@@ -39,6 +39,8 @@ class SearchViewModel(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private val queryFlow = MutableStateFlow("")
+    private val _offlineResults = MutableStateFlow<List<com.example.switchstream.data.db.DownloadedMedia>>(emptyList())
+    val offlineResults: StateFlow<List<com.example.switchstream.data.db.DownloadedMedia>> = _offlineResults.asStateFlow()
 
     init {
         queryFlow
@@ -85,37 +87,37 @@ class SearchViewModel(
                 // Store offline results separately since they're DownloadedMedia not BaseItemDto
                 _offlineResults.value = matched
             } else {
-                // Online: search server
+                // Online: search by title + genre in parallel, deduplicate
                 _offlineResults.value = emptyList()
-                libraryRepo.search(query).fold(
-                    onSuccess = { items ->
-                        _uiState.value = _uiState.value.copy(
-                            results = items,
-                            isSearching = false,
-                            hasSearched = true
-                        )
-                    },
-                    onFailure = {
-                        // Fallback to offline search on network error
-                        if (downloadRepo != null) {
-                            val downloads = downloadRepo.getCompletedDownloads().first()
-                            val lowerQuery = query.lowercase()
-                            _offlineResults.value = downloads.filter {
-                                it.title.lowercase().contains(lowerQuery) ||
-                                    (it.seriesName?.lowercase()?.contains(lowerQuery) == true)
-                            }
+                try {
+                    val titleResults = libraryRepo.search(query).getOrNull() ?: emptyList()
+                    val genreResults = libraryRepo.searchByGenre(query).getOrNull() ?: emptyList()
+                    val seenIds = titleResults.map { it.id }.toSet()
+                    val combined = titleResults + genreResults.filter { it.id !in seenIds }
+
+                    _uiState.value = _uiState.value.copy(
+                        results = combined,
+                        isSearching = false,
+                        hasSearched = true
+                    )
+                } catch (_: Exception) {
+                    // Fallback to offline search on network error
+                    if (downloadRepo != null) {
+                        val downloads = downloadRepo.getCompletedDownloads().first()
+                        val lowerQuery = query.lowercase()
+                        _offlineResults.value = downloads.filter {
+                            it.title.lowercase().contains(lowerQuery) ||
+                                (it.seriesName?.lowercase()?.contains(lowerQuery) == true)
                         }
-                        _uiState.value = _uiState.value.copy(
-                            results = emptyList(),
-                            isSearching = false,
-                            hasSearched = true
-                        )
                     }
-                )
+                    _uiState.value = _uiState.value.copy(
+                        results = emptyList(),
+                        isSearching = false,
+                        hasSearched = true
+                    )
+                }
             }
         }
     }
 
-    private val _offlineResults = MutableStateFlow<List<com.example.switchstream.data.db.DownloadedMedia>>(emptyList())
-    val offlineResults: StateFlow<List<com.example.switchstream.data.db.DownloadedMedia>> = _offlineResults.asStateFlow()
 }

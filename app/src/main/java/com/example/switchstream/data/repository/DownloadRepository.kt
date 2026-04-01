@@ -40,7 +40,8 @@ class DownloadRepository(
         thumbnailUrl: String,
         mediaType: String,
         seriesName: String? = null,
-        accessToken: String
+        accessToken: String,
+        silent: Boolean = false
     ) {
         val filePath = File(getDownloadDir(), "$itemId.mp4").absolutePath
 
@@ -63,7 +64,8 @@ class DownloadRepository(
                     "title" to title,
                     "streamUrl" to streamUrl,
                     "filePath" to filePath,
-                    "accessToken" to accessToken
+                    "accessToken" to accessToken,
+                    "silent" to silent
                 )
             )
             .setConstraints(

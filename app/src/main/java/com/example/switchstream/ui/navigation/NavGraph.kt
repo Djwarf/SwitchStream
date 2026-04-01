@@ -221,6 +221,9 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                                 Screen.Person.createRoute(personId, Uri.encode(personName))
                             )
                         }
+                    },
+                    onGenreClick = { genre ->
+                        navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
                     }
                 )
             }

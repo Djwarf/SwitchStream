@@ -146,6 +146,19 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
         response.content.items.orEmpty()
     }
 
+    suspend fun searchByGenre(genre: String, limit: Int = 30): Result<List<BaseItemDto>> = runCatching {
+        val response = apiClient.itemsApi.getItems(
+            userId = userId,
+            genres = listOf(genre),
+            recursive = true,
+            limit = limit,
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+            sortBy = listOf(ItemSortBy.COMMUNITY_RATING),
+            sortOrder = listOf(SortOrder.DESCENDING)
+        )
+        response.content.items.orEmpty()
+    }
+
     // Similar items
     suspend fun getSimilarItems(itemId: UUID, limit: Int = 12): Result<List<BaseItemDto>> = runCatching {
         val response = apiClient.libraryApi.getSimilarItems(

@@ -71,7 +71,8 @@ import org.jellyfin.sdk.model.api.PersonKind
 fun DetailScreen(
     viewModel: DetailViewModel,
     onPlayClick: (itemId: String) -> Unit,
-    onPersonClick: (personId: String, personName: String) -> Unit = { _, _ -> }
+    onPersonClick: (personId: String, personName: String) -> Unit = { _, _ -> },
+    onGenreClick: (genre: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -94,7 +95,10 @@ fun DetailScreen(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onTogglePlayed = viewModel::togglePlayed,
                 onToggleDownload = viewModel::toggleDownload,
-                onPersonClick = onPersonClick
+                onDownloadSeason = viewModel::downloadSeason,
+                onDownloadEpisode = viewModel::downloadEpisode,
+                onPersonClick = onPersonClick,
+                onGenreClick = onGenreClick
             )
         }
 
@@ -156,7 +160,10 @@ private fun DetailContent(
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onToggleDownload: () -> Unit,
-    onPersonClick: (personId: String, personName: String) -> Unit
+    onDownloadSeason: () -> Unit,
+    onDownloadEpisode: (org.jellyfin.sdk.model.api.BaseItemDto) -> Unit,
+    onPersonClick: (personId: String, personName: String) -> Unit,
+    onGenreClick: (genre: String) -> Unit
 ) {
     val dims = LocalDimensions.current
     val item = uiState.item ?: return
@@ -344,7 +351,7 @@ private fun DetailContent(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(GlassSurface)
                                 .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
-                                .clickable { onToggleDownload() },
+                                .clickable { if (uiState.isSeries) onDownloadSeason() else onToggleDownload() },
                             contentAlignment = Alignment.Center
                         ) {
                             // Circular progress behind icon when downloading
@@ -448,16 +455,15 @@ private fun DetailContent(
                     items(genres, key = { it }) { genre ->
                         Box(
                             modifier = Modifier
-                                .background(
-                                    color = GlassSurface,
-                                    shape = RoundedCornerShape(20.dp)
-                                )
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(GlassSurface)
                                 .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                                .clickable { onGenreClick(genre) }
                         ) {
                             Text(
                                 text = genre,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = TextSecondary,
+                                color = AccentBlue,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                             )
                         }
@@ -516,7 +522,9 @@ private fun DetailContent(
                     episode = episode,
                     imageUrl = imageRepo.getPrimaryImageUrl(episode.id),
                     onClick = { onPlayClick(episode.id.toString()) },
-                    modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 4.dp),
+                    downloadState = uiState.episodeDownloadStates[episode.id.toString()],
+                    onDownloadClick = if (!dims.isTV) { { onDownloadEpisode(episode) } } else null
                 )
             }
         }

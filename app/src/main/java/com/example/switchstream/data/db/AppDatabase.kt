@@ -9,15 +9,12 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/**
- * Simple JSON-file backed database for download metadata.
- * Replaces Room to avoid KSP/KAPT dependency issues with AGP 9 + Kotlin 2.2.
- */
 class AppDatabase private constructor(private val context: Context) {
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val file get() = File(context.filesDir, "downloads.json")
     private val _data = MutableStateFlow(loadFromDisk())
+    private val lock = Any()
 
     private fun loadFromDisk(): List<DownloadedMedia> {
         return try {
@@ -30,7 +27,7 @@ class AppDatabase private constructor(private val context: Context) {
     }
 
     private fun saveToDisk(items: List<DownloadedMedia>) {
-        file.writeText(json.encodeToString(items.map { it.toSerializable() }))
+        try { file.writeText(json.encodeToString(items.map { it.toSerializable() })) } catch (_: Exception) {}
     }
 
     fun downloadDao(): DownloadDao = DaoImpl()
@@ -48,27 +45,44 @@ class AppDatabase private constructor(private val context: Context) {
             _data.map { list -> list.find { it.itemId == itemId } }
 
         override suspend fun insert(media: DownloadedMedia) {
-            val updated = _data.value.filter { it.itemId != media.itemId } + media
-            _data.value = updated
-            saveToDisk(updated)
+            synchronized(lock) {
+                val updated = _data.value.filter { it.itemId != media.itemId } + media
+                _data.value = updated
+                saveToDisk(updated)
+            }
         }
 
         override suspend fun update(media: DownloadedMedia) {
-            val updated = _data.value.map { if (it.itemId == media.itemId) media else it }
-            _data.value = updated
-            saveToDisk(updated)
+            synchronized(lock) {
+                val updated = _data.value.map { if (it.itemId == media.itemId) media else it }
+                _data.value = updated
+                saveToDisk(updated)
+            }
+        }
+
+        // Atomic update: read + modify in one step to avoid race conditions
+        suspend fun updateByItemId(itemId: String, transform: (DownloadedMedia) -> DownloadedMedia) {
+            synchronized(lock) {
+                val updated = _data.value.map { if (it.itemId == itemId) transform(it) else it }
+                _data.value = updated
+                saveToDisk(updated)
+            }
         }
 
         override suspend fun delete(media: DownloadedMedia) {
-            val updated = _data.value.filter { it.itemId != media.itemId }
-            _data.value = updated
-            saveToDisk(updated)
+            synchronized(lock) {
+                val updated = _data.value.filter { it.itemId != media.itemId }
+                _data.value = updated
+                saveToDisk(updated)
+            }
         }
 
         override suspend fun deleteByItemId(itemId: String) {
-            val updated = _data.value.filter { it.itemId != itemId }
-            _data.value = updated
-            saveToDisk(updated)
+            synchronized(lock) {
+                val updated = _data.value.filter { it.itemId != itemId }
+                _data.value = updated
+                saveToDisk(updated)
+            }
         }
     }
 

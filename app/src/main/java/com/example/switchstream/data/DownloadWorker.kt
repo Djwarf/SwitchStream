@@ -33,14 +33,18 @@ class DownloadWorker(
         val streamUrl = inputData.getString("streamUrl") ?: return@withContext Result.failure()
         val filePath = inputData.getString("filePath") ?: return@withContext Result.failure()
         val accessToken = inputData.getString("accessToken") ?: ""
+        val silent = inputData.getBoolean("silent", false)
 
         val dao = AppDatabase.getInstance(applicationContext).downloadDao()
         val notificationId = NOTIFICATION_ID_BASE + itemId.hashCode()
 
-        createNotificationChannel()
-        showProgressNotification(title, 0, true, notificationId)
+        if (!silent) {
+            createNotificationChannel()
+            showProgressNotification(title, 0, true, notificationId)
+        }
 
         try {
+            // Mark as downloading
             dao.getByItemId(itemId)?.let {
                 dao.update(it.copy(downloadState = DownloadState.DOWNLOADING))
             }
@@ -76,37 +80,37 @@ class DownloadWorker(
                                 (downloadedBytes * 100 / totalBytes).toInt()
                             } else 0
 
+                            // Update progress atomically
+                            val currentTotal = if (totalBytes > 0) totalBytes else downloadedBytes
                             dao.getByItemId(itemId)?.let {
-                                dao.update(
-                                    it.copy(
-                                        downloadedBytes = downloadedBytes,
-                                        totalBytes = if (totalBytes > 0) totalBytes else downloadedBytes
-                                    )
-                                )
+                                dao.update(it.copy(
+                                    downloadedBytes = downloadedBytes,
+                                    totalBytes = currentTotal,
+                                    downloadState = DownloadState.DOWNLOADING
+                                ))
                             }
-                            showProgressNotification(title, progress, false, notificationId)
+                            if (!silent) showProgressNotification(title, progress, false, notificationId)
                         }
                     }
                 }
             }
 
+            // Mark complete
             dao.getByItemId(itemId)?.let {
-                dao.update(
-                    it.copy(
-                        downloadState = DownloadState.COMPLETE,
-                        downloadedBytes = downloadedBytes,
-                        totalBytes = downloadedBytes
-                    )
-                )
+                dao.update(it.copy(
+                    downloadState = DownloadState.COMPLETE,
+                    downloadedBytes = downloadedBytes,
+                    totalBytes = downloadedBytes
+                ))
             }
 
-            showDoneNotification(title, "Download complete", android.R.drawable.stat_sys_download_done, notificationId)
+            if (!silent) showDoneNotification(title, "Download complete", android.R.drawable.stat_sys_download_done, notificationId)
             Result.success()
         } catch (e: Exception) {
             dao.getByItemId(itemId)?.let {
                 dao.update(it.copy(downloadState = DownloadState.FAILED))
             }
-            showDoneNotification(title, "Download failed", android.R.drawable.stat_notify_error, notificationId)
+            if (!silent) showDoneNotification(title, "Download failed", android.R.drawable.stat_notify_error, notificationId)
             Result.failure()
         }
     }
