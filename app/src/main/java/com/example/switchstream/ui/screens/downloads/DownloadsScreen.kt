@@ -157,6 +157,29 @@ private fun DownloadRow(
                     else -> AccentBlue
                 }
             )
+            // Progress bar for active downloads
+            if (download.downloadState == DownloadState.DOWNLOADING && download.totalBytes > 0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { download.downloadedBytes.toFloat() / download.totalBytes.toFloat() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = AccentBlue,
+                    trackColor = GlassBorder
+                )
+            } else if (download.downloadState == DownloadState.QUEUED) {
+                Spacer(modifier = Modifier.height(6.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = AccentBlue,
+                    trackColor = GlassBorder
+                )
+            }
         }
 
         // Status icon

@@ -1,10 +1,17 @@
 package com.example.switchstream.data
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.switchstream.data.db.AppDatabase
 import com.example.switchstream.data.db.DownloadState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -15,15 +22,25 @@ class DownloadWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result {
-        val itemId = inputData.getString("itemId") ?: return Result.failure()
-        val streamUrl = inputData.getString("streamUrl") ?: return Result.failure()
-        val filePath = inputData.getString("filePath") ?: return Result.failure()
+    companion object {
+        private const val CHANNEL_ID = "switchstream_downloads"
+        private const val NOTIFICATION_ID_BASE = 10000
+    }
+
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val itemId = inputData.getString("itemId") ?: return@withContext Result.failure()
+        val title = inputData.getString("title") ?: "Download"
+        val streamUrl = inputData.getString("streamUrl") ?: return@withContext Result.failure()
+        val filePath = inputData.getString("filePath") ?: return@withContext Result.failure()
         val accessToken = inputData.getString("accessToken") ?: ""
 
         val dao = AppDatabase.getInstance(applicationContext).downloadDao()
+        val notificationId = NOTIFICATION_ID_BASE + itemId.hashCode()
 
-        return try {
+        createNotificationChannel()
+        showProgressNotification(title, 0, true, notificationId)
+
+        try {
             dao.getByItemId(itemId)?.let {
                 dao.update(it.copy(downloadState = DownloadState.DOWNLOADING))
             }
@@ -33,6 +50,8 @@ class DownloadWorker(
             if (accessToken.isNotEmpty()) {
                 connection.setRequestProperty("Authorization", "MediaBrowser Token=\"$accessToken\"")
             }
+            connection.connectTimeout = 30000
+            connection.readTimeout = 30000
             connection.connect()
 
             val totalBytes = connection.contentLengthLong
@@ -47,13 +66,16 @@ class DownloadWorker(
                     while (input.read(buffer).also { bytesRead = it } != -1) {
                         if (isStopped) {
                             file.delete()
-                            return Result.failure()
+                            return@withContext Result.failure()
                         }
                         output.write(buffer, 0, bytesRead)
                         downloadedBytes += bytesRead
 
-                        // Update progress every 1MB
                         if (downloadedBytes % (1024 * 1024) < 8192) {
+                            val progress = if (totalBytes > 0) {
+                                (downloadedBytes * 100 / totalBytes).toInt()
+                            } else 0
+
                             dao.getByItemId(itemId)?.let {
                                 dao.update(
                                     it.copy(
@@ -62,6 +84,7 @@ class DownloadWorker(
                                     )
                                 )
                             }
+                            showProgressNotification(title, progress, false, notificationId)
                         }
                     }
                 }
@@ -77,12 +100,50 @@ class DownloadWorker(
                 )
             }
 
+            showDoneNotification(title, "Download complete", android.R.drawable.stat_sys_download_done, notificationId)
             Result.success()
         } catch (e: Exception) {
             dao.getByItemId(itemId)?.let {
                 dao.update(it.copy(downloadState = DownloadState.FAILED))
             }
+            showDoneNotification(title, "Download failed", android.R.drawable.stat_notify_error, notificationId)
             Result.failure()
         }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID, "Downloads", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Media download progress"
+                setShowBadge(false)
+            }
+            (applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    private fun showProgressNotification(title: String, progress: Int, indeterminate: Boolean, id: Int) {
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(if (indeterminate) "Starting download..." else "$progress%")
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setProgress(100, progress, indeterminate)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        try { NotificationManagerCompat.from(applicationContext).notify(id, notification) } catch (_: SecurityException) { }
+    }
+
+    private fun showDoneNotification(title: String, text: String, icon: Int, id: Int) {
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(icon)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .build()
+        try { NotificationManagerCompat.from(applicationContext).notify(id, notification) } catch (_: SecurityException) { }
     }
 }

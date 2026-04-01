@@ -17,6 +17,8 @@ class NetworkMonitor(context: Context) {
     private val _isOnline = MutableStateFlow(checkCurrentConnectivity())
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
+    private var _offlineModeForced = false
+
     init {
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -24,7 +26,7 @@ class NetworkMonitor(context: Context) {
 
         connectivityManager.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                _isOnline.value = true
+                if (!_offlineModeForced) _isOnline.value = true
             }
 
             override fun onLost(network: Network) {
@@ -33,7 +35,13 @@ class NetworkMonitor(context: Context) {
         })
     }
 
+    fun setOfflineMode(forced: Boolean) {
+        _offlineModeForced = forced
+        _isOnline.value = if (forced) false else checkCurrentConnectivity()
+    }
+
     private fun checkCurrentConnectivity(): Boolean {
+        if (_offlineModeForced) return false
         val network = connectivityManager.activeNetwork ?: return false
         val caps = connectivityManager.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)

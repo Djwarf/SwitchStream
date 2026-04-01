@@ -24,7 +24,8 @@ data class PlaybackSettings(
     val pictureInPictureEnabled: Boolean = false,
     val subtitleFontSize: Int = 16,
     val subtitleBackgroundOpacity: Float = 0.5f,
-    val lockLandscapeDuringPlayback: Boolean = true
+    val lockLandscapeDuringPlayback: Boolean = true,
+    val offlineMode: Boolean = false
 )
 
 class SettingsManager(private val context: Context) {
@@ -40,6 +41,7 @@ class SettingsManager(private val context: Context) {
         val SUBTITLE_FONT_SIZE = intPreferencesKey("subtitle_font_size")
         val SUBTITLE_BG_OPACITY = floatPreferencesKey("subtitle_bg_opacity")
         val LOCK_LANDSCAPE = booleanPreferencesKey("lock_landscape")
+        val OFFLINE_MODE = booleanPreferencesKey("offline_mode")
     }
 
     val settings: Flow<PlaybackSettings> = context.settingsDataStore.data.map { prefs ->
@@ -53,7 +55,8 @@ class SettingsManager(private val context: Context) {
             pictureInPictureEnabled = prefs[PIP_ENABLED] ?: false,
             subtitleFontSize = prefs[SUBTITLE_FONT_SIZE] ?: 16,
             subtitleBackgroundOpacity = prefs[SUBTITLE_BG_OPACITY] ?: 0.5f,
-            lockLandscapeDuringPlayback = prefs[LOCK_LANDSCAPE] ?: true
+            lockLandscapeDuringPlayback = prefs[LOCK_LANDSCAPE] ?: true,
+            offlineMode = prefs[OFFLINE_MODE] ?: false
         )
     }
 
@@ -95,5 +98,9 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updateLockLandscape(enabled: Boolean) {
         context.settingsDataStore.edit { it[LOCK_LANDSCAPE] = enabled }
+    }
+
+    suspend fun updateOfflineMode(enabled: Boolean) {
+        context.settingsDataStore.edit { it[OFFLINE_MODE] = enabled }
     }
 }

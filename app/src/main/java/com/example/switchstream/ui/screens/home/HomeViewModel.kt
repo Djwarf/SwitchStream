@@ -8,6 +8,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -36,14 +37,30 @@ data class HomeUiState(
 class HomeViewModel(
     private val libraryRepo: LibraryRepository,
     val imageRepo: ImageRepository,
-    private val downloadRepo: com.example.switchstream.data.repository.DownloadRepository? = null
+    private val downloadRepo: com.example.switchstream.data.repository.DownloadRepository? = null,
+    private val settingsManager: com.example.switchstream.data.SettingsManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        loadHomeData()
+        checkOfflineModeAndLoad()
+    }
+
+    private fun checkOfflineModeAndLoad() {
+        if (settingsManager == null) {
+            loadHomeData()
+            return
+        }
+        viewModelScope.launch {
+            val settings = settingsManager.settings.first()
+            if (settings.offlineMode) {
+                loadOfflineContent()
+            } else {
+                loadHomeData()
+            }
+        }
     }
 
     private fun loadHomeData() {
@@ -139,6 +156,6 @@ class HomeViewModel(
     }
 
     fun refresh() {
-        loadHomeData()
+        checkOfflineModeAndLoad()
     }
 }

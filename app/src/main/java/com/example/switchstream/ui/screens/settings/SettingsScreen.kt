@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.PictureInPicture
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -58,7 +59,8 @@ import com.example.switchstream.ui.theme.TextTertiary
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onSwitchServer: () -> Unit = {}
+    onSwitchServer: () -> Unit = {},
+    onOfflineModeChanged: () -> Unit = {}
 ) {
     val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
@@ -209,6 +211,29 @@ fun SettingsScreen(
                 value = if (playback.lockLandscapeDuringPlayback) "On" else "Off",
                 valueColor = if (playback.lockLandscapeDuringPlayback) AccentBlue else TextSecondary,
                 onClick = { viewModel.updateLockLandscape(!playback.lockLandscapeDuringPlayback) }
+            )
+        }
+
+        // Offline mode
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Storage",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+
+        item {
+            SettingsTile(
+                icon = Icons.Outlined.CloudOff,
+                label = "Offline Mode",
+                value = if (playback.offlineMode) "On" else "Off",
+                valueColor = if (playback.offlineMode) AccentBlue else TextSecondary,
+                onClick = {
+                    viewModel.updateOfflineMode(!playback.offlineMode)
+                    onOfflineModeChanged()
+                }
             )
         }
 

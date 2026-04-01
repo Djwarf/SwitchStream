@@ -118,7 +118,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             popExitTransition = { defaultPopExit }
         ) {
             val vm = viewModel {
-                HomeViewModel(container.createLibraryRepository(), container.createImageRepository(), container.downloadRepository)
+                HomeViewModel(container.createLibraryRepository(), container.createImageRepository(), container.downloadRepository, container.settingsManager)
             }
             val uiState by vm.uiState.collectAsState()
 
@@ -300,7 +300,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         ) { backStackEntry ->
             val initialQuery = backStackEntry.arguments?.getString("query") ?: ""
             val vm = viewModel {
-                SearchViewModel(container.createLibraryRepository(), container.createImageRepository())
+                SearchViewModel(container.createLibraryRepository(), container.createImageRepository(), container.downloadRepository, container.networkMonitor)
             }
             androidx.compose.runtime.LaunchedEffect(initialQuery) {
                 if (initialQuery.isNotEmpty()) {
@@ -370,6 +370,12 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     viewModel = vm,
                     onSwitchServer = {
                         navController.navigate(Screen.Connect.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onOfflineModeChanged = {
+                        // Navigate to Home with fresh state
+                        navController.navigate(Screen.Home.route) {
                             popUpTo(0) { inclusive = true }
                         }
                     }

@@ -39,6 +39,7 @@ fun SearchScreen(
 ) {
     val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
+    val offlineResults by viewModel.offlineResults.collectAsState()
 
     Column(
         modifier = Modifier
@@ -57,9 +58,10 @@ fun SearchScreen(
             modifier = Modifier.padding(horizontal = 48.dp)
         )
 
-        if (uiState.hasSearched && uiState.results.isNotEmpty()) {
+        val totalResults = uiState.results.size + offlineResults.size
+        if (uiState.hasSearched && totalResults > 0) {
             Text(
-                text = "${uiState.results.size} results",
+                text = if (offlineResults.isNotEmpty()) "$totalResults downloaded" else "$totalResults results",
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary,
                 modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 8.dp)
@@ -75,8 +77,27 @@ fun SearchScreen(
             !uiState.hasSearched -> {
                 EmptyState("Search for movies, shows, and more")
             }
-            uiState.hasSearched && uiState.results.isEmpty() -> {
+            uiState.hasSearched && uiState.results.isEmpty() && offlineResults.isEmpty() -> {
                 EmptyState("No results for \"${uiState.query}\"")
+            }
+            offlineResults.isNotEmpty() -> {
+                // Offline search results
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = dims.gridMinCellSize),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(offlineResults, key = { it.itemId }) { download ->
+                        EditorialCard(
+                            title = download.title,
+                            imageUrl = download.thumbnailUrl,
+                            subtitle = download.seriesName ?: "Downloaded",
+                            onClick = { onItemClick(download.itemId) }
+                        )
+                    }
+                }
             }
             else -> {
                 LazyVerticalGrid(

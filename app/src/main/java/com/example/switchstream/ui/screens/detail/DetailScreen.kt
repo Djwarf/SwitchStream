@@ -97,6 +97,53 @@ fun DetailScreen(
                 onPersonClick = onPersonClick
             )
         }
+
+        // Delete download confirmation dialog
+        if (uiState.showDeleteConfirm) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(com.example.switchstream.ui.theme.OverlayBlack)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { viewModel.dismissDeleteConfirm() },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(GlassSurface)
+                        .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Delete Download?",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = com.example.switchstream.ui.theme.TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "This will remove the downloaded file.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = com.example.switchstream.ui.theme.TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FocusableButton(
+                            text = "Cancel",
+                            onClick = { viewModel.dismissDeleteConfirm() },
+                            isPrimary = false
+                        )
+                        FocusableButton(
+                            text = "Delete",
+                            onClick = { viewModel.confirmDeleteDownload() }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -289,43 +336,44 @@ private fun DetailContent(
                             )
                         }
                     }
-                    // Download button (mobile/tablet only)
-                    if (!com.example.switchstream.ui.theme.LocalDimensions.current.isTV) Surface(
-                        onClick = onToggleDownload,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable { onToggleDownload() },
-                        shape = ClickableSurfaceDefaults.shape(
-                            shape = RoundedCornerShape(12.dp)
-                        ),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = GlassSurface,
-                            focusedContainerColor = GlassSurface
-                        ),
-                        border = ClickableSurfaceDefaults.border(
-                            border = Border(
-                                border = BorderStroke(1.dp, GlassBorder),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        )
-                    ) {
+                    // Download button with progress (mobile/tablet only)
+                    if (!com.example.switchstream.ui.theme.LocalDimensions.current.isTV) {
                         Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(GlassSurface)
+                                .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
+                                .clickable { onToggleDownload() },
+                            contentAlignment = Alignment.Center
                         ) {
+                            // Circular progress behind icon when downloading
+                            if (uiState.downloadState == com.example.switchstream.data.db.DownloadState.DOWNLOADING ||
+                                uiState.downloadState == com.example.switchstream.data.db.DownloadState.QUEUED
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = { uiState.downloadProgress },
+                                    modifier = Modifier.size(34.dp),
+                                    color = AccentBlue,
+                                    strokeWidth = 2.5.dp,
+                                    trackColor = GlassBorder
+                                )
+                            }
                             Icon(
                                 imageVector = when (uiState.downloadState) {
                                     com.example.switchstream.data.db.DownloadState.COMPLETE -> Icons.Filled.CheckCircle
+                                    com.example.switchstream.data.db.DownloadState.DOWNLOADING -> Icons.Outlined.CloudDownload
+                                    com.example.switchstream.data.db.DownloadState.QUEUED -> Icons.Outlined.CloudDownload
                                     else -> Icons.Outlined.CloudDownload
                                 },
                                 contentDescription = "Download",
                                 tint = when (uiState.downloadState) {
                                     com.example.switchstream.data.db.DownloadState.COMPLETE -> AccentBlue
                                     com.example.switchstream.data.db.DownloadState.DOWNLOADING,
-                                    com.example.switchstream.data.db.DownloadState.QUEUED -> AccentBlue.copy(alpha = 0.5f)
+                                    com.example.switchstream.data.db.DownloadState.QUEUED -> AccentBlue.copy(alpha = 0.7f)
                                     else -> TextSecondary
                                 },
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }

@@ -111,4 +111,9 @@ class SettingsViewModel(
     fun updateLockLandscape(enabled: Boolean) {
         viewModelScope.launch { settingsManager.updateLockLandscape(enabled) }
     }
+
+    fun updateOfflineMode(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.updateOfflineMode(enabled) }
+        appContainer.networkMonitor.setOfflineMode(enabled)
+    }
 }

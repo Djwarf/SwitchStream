@@ -60,6 +60,7 @@ class DownloadRepository(
             .setInputData(
                 workDataOf(
                     "itemId" to itemId,
+                    "title" to title,
                     "streamUrl" to streamUrl,
                     "filePath" to filePath,
                     "accessToken" to accessToken

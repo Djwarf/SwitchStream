@@ -26,7 +26,9 @@ data class DetailUiState(
     val nextUpEpisode: BaseItemDto? = null,
     val isFavorite: Boolean = false,
     val isPlayed: Boolean = false,
-    val downloadState: com.example.switchstream.data.db.DownloadState? = null
+    val downloadState: com.example.switchstream.data.db.DownloadState? = null,
+    val downloadProgress: Float = 0f,
+    val showDeleteConfirm: Boolean = false
 )
 
 class DetailViewModel(
@@ -50,7 +52,13 @@ class DetailViewModel(
         if (downloadRepo == null) return
         viewModelScope.launch {
             downloadRepo.observeDownload(itemId.toString()).collect { download ->
-                _uiState.value = _uiState.value.copy(downloadState = download?.downloadState)
+                val progress = if (download != null && download.totalBytes > 0) {
+                    download.downloadedBytes.toFloat() / download.totalBytes.toFloat()
+                } else 0f
+                _uiState.value = _uiState.value.copy(
+                    downloadState = download?.downloadState,
+                    downloadProgress = progress
+                )
             }
         }
     }
@@ -59,8 +67,11 @@ class DetailViewModel(
         if (downloadRepo == null) return
         viewModelScope.launch {
             val current = _uiState.value.downloadState
-            if (current == com.example.switchstream.data.db.DownloadState.COMPLETE ||
-                current == com.example.switchstream.data.db.DownloadState.DOWNLOADING ||
+            if (current == com.example.switchstream.data.db.DownloadState.COMPLETE) {
+                // Show confirmation before deleting completed download
+                _uiState.value = _uiState.value.copy(showDeleteConfirm = true)
+                return@launch
+            } else if (current == com.example.switchstream.data.db.DownloadState.DOWNLOADING ||
                 current == com.example.switchstream.data.db.DownloadState.QUEUED
             ) {
                 downloadRepo.cancelDownload(itemId.toString())
@@ -78,6 +89,18 @@ class DetailViewModel(
                 )
             }
         }
+    }
+
+    fun confirmDeleteDownload() {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            downloadRepo.deleteDownload(itemId.toString())
+            _uiState.value = _uiState.value.copy(showDeleteConfirm = false)
+        }
+    }
+
+    fun dismissDeleteConfirm() {
+        _uiState.value = _uiState.value.copy(showDeleteConfirm = false)
     }
 
     private fun loadDetail() {
