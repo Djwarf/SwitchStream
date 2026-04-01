@@ -38,7 +38,8 @@ class HomeViewModel(
     private val libraryRepo: LibraryRepository,
     val imageRepo: ImageRepository,
     private val downloadRepo: com.example.switchstream.data.repository.DownloadRepository? = null,
-    private val settingsManager: com.example.switchstream.data.SettingsManager? = null
+    private val settingsManager: com.example.switchstream.data.SettingsManager? = null,
+    private val isTV: Boolean = false
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -49,7 +50,7 @@ class HomeViewModel(
     }
 
     private fun checkOfflineModeAndLoad() {
-        if (settingsManager == null) {
+        if (isTV || settingsManager == null) {
             loadHomeData()
             return
         }
@@ -107,12 +108,14 @@ class HomeViewModel(
                     loadRecommendations(continueWatching)
                 },
                 onFailure = { e ->
-                    // Offline fallback — show downloaded content
-                    loadOfflineContent()
-                    if (_uiState.value.offlineItems.isEmpty()) {
+                    if (!isTV) {
+                        // Mobile/tablet: offline fallback — show downloaded content
+                        loadOfflineContent()
+                    }
+                    if (isTV || _uiState.value.offlineItems.isEmpty()) {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = "Failed to load: ${e.message}"
+                            error = if (com.example.switchstream.util.isNetworkError(e)) "You're offline" else "Failed to load: ${e.message}"
                         )
                     }
                 }

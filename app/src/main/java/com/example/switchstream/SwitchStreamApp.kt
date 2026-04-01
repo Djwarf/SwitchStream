@@ -23,11 +23,20 @@ class SwitchStreamApp : Application(), ImageLoaderFactory {
 
         container = AppContainer(this)
 
-        // Apply saved offline mode setting
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            val settings = container.settingsManager.settings.first()
-            if (settings.offlineMode) {
-                container.networkMonitor.setOfflineMode(true)
+        // Apply saved offline mode setting (mobile/tablet only — TV never goes offline)
+        val isTV = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        if (!isTV) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val settings = container.settingsManager.settings.first()
+                if (settings.offlineMode) {
+                    container.networkMonitor.setOfflineMode(true)
+                }
+            }
+        } else {
+            // Clear any stuck offline mode on TV
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                container.settingsManager.updateOfflineMode(false)
+                container.networkMonitor.setOfflineMode(false)
             }
         }
     }

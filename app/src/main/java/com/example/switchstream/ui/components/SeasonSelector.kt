@@ -1,6 +1,7 @@
 package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -35,7 +36,7 @@ fun SeasonSelector(
     modifier: Modifier = Modifier
 ) {
     LazyRow(
-        modifier = modifier,
+        modifier = modifier.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -449,6 +450,7 @@ private fun DetailContent(
         if (genres.isNotEmpty()) {
             item {
                 LazyRow(
+                    modifier = Modifier.focusGroup(),
                     contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -538,6 +540,7 @@ private fun DetailContent(
             }
             item {
                 LazyRow(
+                    modifier = Modifier.focusGroup(),
                     contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -564,6 +567,7 @@ private fun DetailContent(
             }
             item {
                 LazyRow(
+                    modifier = Modifier.focusGroup(),
                     contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {

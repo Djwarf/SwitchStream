@@ -214,27 +214,29 @@ fun SettingsScreen(
             )
         }
 
-        // Offline mode
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Storage",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
-            )
-        }
+        // Offline mode (mobile/tablet only)
+        if (!dims.isTV) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Storage",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
+                )
+            }
 
-        item {
-            SettingsTile(
-                icon = Icons.Outlined.CloudOff,
-                label = "Offline Mode",
-                value = if (playback.offlineMode) "On" else "Off",
-                valueColor = if (playback.offlineMode) AccentBlue else TextSecondary,
-                onClick = {
-                    viewModel.updateOfflineMode(!playback.offlineMode)
-                    onOfflineModeChanged()
-                }
-            )
+            item {
+                SettingsTile(
+                    icon = Icons.Outlined.CloudOff,
+                    label = "Offline Mode",
+                    value = if (playback.offlineMode) "On" else "Off",
+                    valueColor = if (playback.offlineMode) AccentBlue else TextSecondary,
+                    onClick = {
+                        viewModel.updateOfflineMode(!playback.offlineMode)
+                        onOfflineModeChanged()
+                    }
+                )
+            }
         }
 
         // Server section

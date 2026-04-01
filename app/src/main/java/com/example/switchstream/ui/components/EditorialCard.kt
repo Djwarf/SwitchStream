@@ -36,6 +36,7 @@ import com.example.switchstream.ui.theme.AccentBlue
 import com.example.switchstream.ui.theme.GlassBorder
 import com.example.switchstream.ui.theme.GlassBorderFocus
 import com.example.switchstream.ui.theme.GlassSurface
+import com.example.switchstream.ui.theme.GlassSurfaceLight
 import com.example.switchstream.ui.theme.PureWhite
 import com.example.switchstream.ui.theme.TextPrimary
 import com.example.switchstream.ui.theme.TextSecondary
@@ -65,7 +66,7 @@ fun EditorialCard(
         shape = CardDefaults.shape(shape = RoundedCornerShape(16.dp)),
         colors = CardDefaults.colors(
             containerColor = GlassSurface,
-            focusedContainerColor = GlassSurface
+            focusedContainerColor = GlassSurfaceLight
         ),
         border = CardDefaults.border(
             border = Border(
@@ -145,8 +146,8 @@ fun EditorialCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    color = TextPrimary,
-                    maxLines = 1,
+                    color = if (isFocused) PureWhite else TextPrimary,
+                    maxLines = if (isFocused) 2 else 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (subtitle != null) {

@@ -1,6 +1,7 @@
 package com.example.switchstream.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,9 @@ fun HomeScreen(
             uiState.isOffline && uiState.offlineItems.isNotEmpty() -> OfflineContent(
                 items = uiState.offlineItems,
                 onItemClick = onItemClick
+            )
+            uiState.isOffline && uiState.offlineItems.isEmpty() -> EmptyState(
+                "You're offline with no downloads.\nDownload content or turn off Offline Mode in Settings."
             )
             uiState.error != null -> ErrorState(
                 message = uiState.error!!,
@@ -219,7 +223,8 @@ private fun ContinueWatchingRow(
     val dims = LocalDimensions.current
     LazyRow(
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.focusGroup()
     ) {
         items(items, key = { it.id }) { item ->
             val progress = item.userData?.playedPercentage?.let { it.toFloat() / 100f }
@@ -252,7 +257,8 @@ private fun NextUpRow(
     val dims = LocalDimensions.current
     LazyRow(
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.focusGroup()
     ) {
         items(items, key = { it.id }) { item ->
             val season = item.parentIndexNumber
@@ -290,7 +296,8 @@ private fun MediaRow(
     val dims = LocalDimensions.current
     LazyRow(
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier.focusGroup()
     ) {
         items(items, key = { it.id }) { item ->
             val year = item.productionYear?.toString()

@@ -118,7 +118,13 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             popExitTransition = { defaultPopExit }
         ) {
             val vm = viewModel {
-                HomeViewModel(container.createLibraryRepository(), container.createImageRepository(), container.downloadRepository, container.settingsManager)
+                HomeViewModel(
+                    container.createLibraryRepository(),
+                    container.createImageRepository(),
+                    container.downloadRepository,
+                    container.settingsManager,
+                    isTV = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                )
             }
             val uiState by vm.uiState.collectAsState()
 
