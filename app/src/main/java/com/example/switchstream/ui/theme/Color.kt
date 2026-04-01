@@ -11,6 +11,7 @@ val TextPrimary = Color(0xFFF5F5F7)
 val TextSecondary = Color(0xFFA1A1A6)
 val TextTertiary = Color(0xFF636366)
 val AccentBlue = Color(0xFF0A84FF)
+val AccentBurgundy = Color(0xFF8B1A1A)
 val AccentSubtle = Color(0x260A84FF)  // 15% opacity blue
 val ErrorRed = Color(0xFFFF453A)
 val SuccessGreen = Color(0xFF30D158)

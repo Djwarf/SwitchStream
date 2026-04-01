@@ -5,7 +5,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,22 +24,34 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.FitScreen
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.switchstream.MainActivity
+import com.example.switchstream.ui.components.ResumeDialog
+import com.example.switchstream.ui.theme.LocalDimensions
+import com.example.switchstream.ui.theme.DeviceType
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -60,6 +76,33 @@ fun PlayerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
     val activity = LocalContext.current as? MainActivity
+    val dims = LocalDimensions.current
+    var seekIndicator by remember { mutableStateOf<String?>(null) }
+    val isInPip = activity?.isInPictureInPictureMode == true
+    var resizeMode by remember { mutableStateOf(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
+    // Immersive fullscreen — hide system bars during playback
+    val view = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(view) {
+        val controller = androidx.core.view.WindowCompat.getInsetsController(
+            (view.context as? android.app.Activity)?.window ?: return@DisposableEffect onDispose {},
+            view
+        )
+        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        onDispose {
+            controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // Auto-hide seek indicator
+    LaunchedEffect(seekIndicator) {
+        if (seekIndicator != null) {
+            kotlinx.coroutines.delay(600)
+            seekIndicator = null
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -70,6 +113,40 @@ fun PlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .then(
+                if (!dims.isTV && !uiState.showResumePrompt) {
+                    // Mobile: double-tap sides to seek, single tap to toggle controls
+                    // Disabled when resume dialog is showing so dialog buttons are tappable
+                    Modifier.pointerInput(uiState.showResumePrompt) {
+                        detectTapGestures(
+                            onTap = {
+                                if (uiState.showControls) viewModel.hideControls()
+                                else viewModel.showControls()
+                            },
+                            onDoubleTap = { offset ->
+                                val halfWidth = size.width / 2
+                                if (offset.x < halfWidth) {
+                                    viewModel.seekBack()
+                                    seekIndicator = "-10s"
+                                } else {
+                                    viewModel.seekForward()
+                                    seekIndicator = "+10s"
+                                }
+                                viewModel.showControls()
+                            }
+                        )
+                    }
+                } else {
+                    // TV: simple click for toggle
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (uiState.showControls) viewModel.hideControls()
+                        else viewModel.showControls()
+                    }
+                }
+            )
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { event ->
@@ -126,10 +203,18 @@ fun PlayerScreen(
                 PlayerView(ctx).apply {
                     player = viewModel.player
                     useController = false
+                    this.resizeMode = resizeMode
+                    playerViewRef = this
                 }
+            },
+            update = { view ->
+                view.resizeMode = resizeMode
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Hide all overlays in PiP mode — just show video
+        if (!isInPip) {
 
         // Custom overlay controls
         AnimatedVisibility(
@@ -151,6 +236,24 @@ fun PlayerScreen(
                         .align(Alignment.TopStart)
                         .padding(32.dp)
                 )
+
+                // Center play/pause button
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(64.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(com.example.switchstream.ui.theme.PureWhite.copy(alpha = 0.2f))
+                        .clickable { viewModel.togglePlayPause() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                        tint = com.example.switchstream.ui.theme.PureWhite,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
 
                 // Controls at bottom
                 Column(
@@ -196,6 +299,32 @@ fun PlayerScreen(
                         ControlTextButton(
                             text = "${uiState.playbackSpeed}x",
                             onClick = { viewModel.showSpeedDialog() }
+                        )
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Scale/aspect ratio toggle
+                        ControlIconButton(
+                            icon = when (resizeMode) {
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FitScreen
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
+                                else -> Icons.Filled.AspectRatio
+                            },
+                            contentDescription = when (resizeMode) {
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> "Fit"
+                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
+                                else -> "Zoom"
+                            },
+                            onClick = {
+                                resizeMode = when (resizeMode) {
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT ->
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL ->
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    else ->
+                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
+                            }
                         )
 
                         Spacer(modifier = Modifier.weight(1f))
@@ -244,6 +373,27 @@ fun PlayerScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Seek indicator
+        AnimatedVisibility(
+            visible = seekIndicator != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .background(com.example.switchstream.ui.theme.PureBlack.copy(alpha = 0.7f))
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = seekIndicator ?: "",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = com.example.switchstream.ui.theme.PureWhite
+                )
             }
         }
 
@@ -323,6 +473,17 @@ fun PlayerScreen(
                 modifier = Modifier.align(Alignment.BottomEnd)
             )
         }
+
+        // Resume prompt
+        if (uiState.showResumePrompt) {
+            ResumeDialog(
+                positionMs = uiState.resumePositionMs,
+                onResume = { viewModel.resumeFromPosition() },
+                onStartOver = { viewModel.startFromBeginning() }
+            )
+        }
+
+        } // end if (!isInPip)
     }
 }
 
@@ -334,7 +495,9 @@ private fun ControlIconButton(
 ) {
     androidx.tv.material3.Surface(
         onClick = onClick,
-        modifier = Modifier.focusable(),
+        modifier = Modifier
+            .clickable { onClick() }
+            .focusable(),
         shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
         ),
@@ -363,7 +526,9 @@ private fun ControlTextButton(
 
     androidx.tv.material3.Surface(
         onClick = onClick,
-        modifier = Modifier.focusable(),
+        modifier = Modifier
+            .clickable { onClick() }
+            .focusable(),
         shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
         ),

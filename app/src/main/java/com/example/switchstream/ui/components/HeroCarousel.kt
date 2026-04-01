@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.example.switchstream.data.repository.ImageRepository
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import com.example.switchstream.ui.theme.PureWhite
 import kotlinx.coroutines.delay
@@ -55,6 +57,7 @@ fun HeroCarousel(
 ) {
     if (items.isEmpty()) return
 
+    val dims = LocalDimensions.current
     var currentIndex by remember { mutableIntStateOf(0) }
 
     // Auto-advance
@@ -70,32 +73,34 @@ fun HeroCarousel(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(500.dp)
+            .height(dims.heroHeight)
     ) {
         AnimatedContent(
             targetState = currentIndex,
             transitionSpec = {
-                fadeIn(androidx.compose.animation.core.tween(800)) togetherWith
-                    fadeOut(androidx.compose.animation.core.tween(800))
+                fadeIn(androidx.compose.animation.core.tween(400)) togetherWith
+                    fadeOut(androidx.compose.animation.core.tween(400))
             },
             label = "hero_crossfade"
         ) { index ->
             val item = items[index]
-            val itemId = item.id.toString()
-            val backdropUrl = item.id?.let { imageRepo.getBackdropUrl(it) }
-            val year = item.productionYear?.toString() ?: ""
-            val rating = item.officialRating ?: ""
-            val genres = item.genres?.take(2)?.joinToString(", ") ?: ""
-            val metaItems = listOfNotNull(
-                year.takeIf { it.isNotEmpty() },
-                genres.takeIf { it.isNotEmpty() },
-                rating.takeIf { it.isNotEmpty() }
-            ).joinToString("     ")
+            val itemId = remember(item.id) { item.id.toString() }
+            val backdropUrl = remember(item.id) { item.id?.let { imageRepo.getBackdropUrl(it) } }
+            val metaItems = remember(item.productionYear, item.officialRating, item.genres) {
+                val year = item.productionYear?.toString() ?: ""
+                val rating = item.officialRating ?: ""
+                val genres = item.genres?.take(2)?.joinToString(", ") ?: ""
+                listOfNotNull(
+                    year.takeIf { it.isNotEmpty() },
+                    genres.takeIf { it.isNotEmpty() },
+                    rating.takeIf { it.isNotEmpty() }
+                ).joinToString("     ")
+            }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(500.dp)
+                    .height(dims.heroHeight)
             ) {
                 AsyncImage(
                     model = backdropUrl,
@@ -122,34 +127,36 @@ fun HeroCarousel(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .fillMaxWidth(0.6f)
-                        .padding(start = 56.dp, bottom = 80.dp)
+                        .fillMaxWidth(if (dims.isTV) 0.6f else 0.9f)
+                        .padding(start = dims.screenPadding, bottom = if (dims.isTV) 80.dp else 24.dp)
                 ) {
                     Text(
                         text = item.name ?: "",
-                        style = MaterialTheme.typography.displayLarge,
+                        style = if (dims.isTV) MaterialTheme.typography.displayLarge
+                               else MaterialTheme.typography.headlineLarge,
                         color = PureWhite,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
 
                     if (metaItems.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = metaItems,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = PureWhite.copy(alpha = 0.7f)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
                             onClick = { onPlayClick(itemId) },
+                            modifier = Modifier.clickable { onPlayClick(itemId) },
                             shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ButtonDefaults.colors(
                                 containerColor = PureWhite,
@@ -160,23 +167,27 @@ fun HeroCarousel(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(
+                                    horizontal = if (dims.isTV) 20.dp else 12.dp,
+                                    vertical = 4.dp
+                                )
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.PlayArrow,
                                     contentDescription = "Play",
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(if (dims.isTV) 22.dp else 18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Play",
-                                    style = MaterialTheme.typography.labelLarge
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1
                                 )
                             }
                         }
 
                         FocusableButton(
-                            text = "More Info",
+                            text = "Info",
                             onClick = { onInfoClick(itemId) },
                             isPrimary = false
                         )

@@ -21,7 +21,10 @@ data class PlaybackSettings(
     val autoPlayNextEpisode: Boolean = true,
     val preferredSubtitleLanguage: String = "",
     val preferredAudioLanguage: String = "",
-    val pictureInPictureEnabled: Boolean = false
+    val pictureInPictureEnabled: Boolean = false,
+    val subtitleFontSize: Int = 16,
+    val subtitleBackgroundOpacity: Float = 0.5f,
+    val lockLandscapeDuringPlayback: Boolean = true
 )
 
 class SettingsManager(private val context: Context) {
@@ -34,6 +37,9 @@ class SettingsManager(private val context: Context) {
         val SUBTITLE_LANG = stringPreferencesKey("subtitle_language")
         val AUDIO_LANG = stringPreferencesKey("audio_language")
         val PIP_ENABLED = booleanPreferencesKey("pip_enabled")
+        val SUBTITLE_FONT_SIZE = intPreferencesKey("subtitle_font_size")
+        val SUBTITLE_BG_OPACITY = floatPreferencesKey("subtitle_bg_opacity")
+        val LOCK_LANDSCAPE = booleanPreferencesKey("lock_landscape")
     }
 
     val settings: Flow<PlaybackSettings> = context.settingsDataStore.data.map { prefs ->
@@ -44,7 +50,10 @@ class SettingsManager(private val context: Context) {
             autoPlayNextEpisode = prefs[AUTO_PLAY_NEXT] ?: true,
             preferredSubtitleLanguage = prefs[SUBTITLE_LANG] ?: "",
             preferredAudioLanguage = prefs[AUDIO_LANG] ?: "",
-            pictureInPictureEnabled = prefs[PIP_ENABLED] ?: false
+            pictureInPictureEnabled = prefs[PIP_ENABLED] ?: false,
+            subtitleFontSize = prefs[SUBTITLE_FONT_SIZE] ?: 16,
+            subtitleBackgroundOpacity = prefs[SUBTITLE_BG_OPACITY] ?: 0.5f,
+            lockLandscapeDuringPlayback = prefs[LOCK_LANDSCAPE] ?: true
         )
     }
 
@@ -74,5 +83,17 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updatePipEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[PIP_ENABLED] = enabled }
+    }
+
+    suspend fun updateSubtitleFontSize(size: Int) {
+        context.settingsDataStore.edit { it[SUBTITLE_FONT_SIZE] = size }
+    }
+
+    suspend fun updateSubtitleBackgroundOpacity(opacity: Float) {
+        context.settingsDataStore.edit { it[SUBTITLE_BG_OPACITY] = opacity }
+    }
+
+    suspend fun updateLockLandscape(enabled: Boolean) {
+        context.settingsDataStore.edit { it[LOCK_LANDSCAPE] = enabled }
     }
 }

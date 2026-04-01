@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
+import com.example.switchstream.util.isNetworkError
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,13 +25,17 @@ data class DetailUiState(
     val similarItems: List<BaseItemDto> = emptyList(),
     val nextUpEpisode: BaseItemDto? = null,
     val isFavorite: Boolean = false,
-    val isPlayed: Boolean = false
+    val isPlayed: Boolean = false,
+    val downloadState: com.example.switchstream.data.db.DownloadState? = null
 )
 
 class DetailViewModel(
     private val libraryRepo: LibraryRepository,
     val imageRepo: ImageRepository,
-    private val itemId: UUID
+    private val itemId: UUID,
+    private val downloadRepo: com.example.switchstream.data.repository.DownloadRepository? = null,
+    private val serverUrl: String = "",
+    private val accessToken: String = ""
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DetailUiState())
@@ -37,6 +43,41 @@ class DetailViewModel(
 
     init {
         loadDetail()
+        observeDownloadState()
+    }
+
+    private fun observeDownloadState() {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            downloadRepo.observeDownload(itemId.toString()).collect { download ->
+                _uiState.value = _uiState.value.copy(downloadState = download?.downloadState)
+            }
+        }
+    }
+
+    fun toggleDownload() {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            val current = _uiState.value.downloadState
+            if (current == com.example.switchstream.data.db.DownloadState.COMPLETE ||
+                current == com.example.switchstream.data.db.DownloadState.DOWNLOADING ||
+                current == com.example.switchstream.data.db.DownloadState.QUEUED
+            ) {
+                downloadRepo.cancelDownload(itemId.toString())
+            } else {
+                val item = _uiState.value.item ?: return@launch
+                val streamUrl = "$serverUrl/Videos/$itemId/stream?static=true&mediaSourceId=$itemId"
+                downloadRepo.startDownload(
+                    itemId = itemId.toString(),
+                    title = item.name ?: "",
+                    streamUrl = streamUrl,
+                    thumbnailUrl = imageRepo.getPrimaryImageUrl(itemId),
+                    mediaType = item.type?.name ?: "",
+                    seriesName = item.seriesName,
+                    accessToken = accessToken
+                )
+            }
+        }
     }
 
     private fun loadDetail() {
@@ -63,7 +104,7 @@ class DetailViewModel(
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = "Failed to load: ${e.message}"
+                        error = if (isNetworkError(e)) "You're offline" else "Failed to load: ${e.message}"
                     )
                 }
             )
@@ -72,21 +113,21 @@ class DetailViewModel(
 
     private fun loadSeriesData(seriesId: UUID) {
         viewModelScope.launch {
-            // Fetch seasons
-            libraryRepo.getSeasons(seriesId).onSuccess { seasons ->
-                _uiState.value = _uiState.value.copy(seasons = seasons)
+            // Fetch seasons and next-up in parallel
+            val seasonsDef = async { libraryRepo.getSeasons(seriesId).getOrNull() ?: emptyList() }
+            val nextUpDef = async { libraryRepo.getNextUp(seriesId).getOrNull() ?: emptyList() }
 
-                // Load episodes for the first season
-                if (seasons.isNotEmpty()) {
-                    loadEpisodesForSeason(seriesId, seasons[0].id)
-                }
-            }
+            val seasons = seasonsDef.await()
+            val nextUp = nextUpDef.await()
 
-            // Fetch next up for this series
-            libraryRepo.getNextUp(seriesId).onSuccess { nextUpList ->
-                _uiState.value = _uiState.value.copy(
-                    nextUpEpisode = nextUpList.firstOrNull()
-                )
+            _uiState.value = _uiState.value.copy(
+                seasons = seasons,
+                nextUpEpisode = nextUp.firstOrNull()
+            )
+
+            // Load first season episodes
+            if (seasons.isNotEmpty()) {
+                loadEpisodesForSeason(seriesId, seasons[0].id)
             }
         }
     }

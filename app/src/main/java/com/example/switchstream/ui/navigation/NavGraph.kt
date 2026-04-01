@@ -49,20 +49,27 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import java.util.UUID
 
 @Composable
-fun NavGraph(startDestination: String) {
+fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val app = context.applicationContext as SwitchStreamApp
     val container = app.container
 
-    val defaultEnter = fadeIn(androidx.compose.animation.core.tween(300)) +
-            slideInHorizontally(androidx.compose.animation.core.tween(300)) { it / 4 }
-    val defaultExit = fadeOut(androidx.compose.animation.core.tween(200)) +
-            slideOutHorizontally(androidx.compose.animation.core.tween(200)) { -it / 4 }
-    val defaultPopEnter = fadeIn(androidx.compose.animation.core.tween(300)) +
-            slideInHorizontally(androidx.compose.animation.core.tween(300)) { -it / 4 }
-    val defaultPopExit = fadeOut(androidx.compose.animation.core.tween(200)) +
-            slideOutHorizontally(androidx.compose.animation.core.tween(200)) { it / 4 }
+    // Handle deep link after nav is ready
+    if (deepLinkRoute != null && startDestination == Screen.Home.route) {
+        androidx.compose.runtime.LaunchedEffect(deepLinkRoute) {
+            navController.navigate(deepLinkRoute)
+        }
+    }
+
+    val defaultEnter = fadeIn(androidx.compose.animation.core.tween(150)) +
+            slideInHorizontally(androidx.compose.animation.core.tween(150)) { it / 4 }
+    val defaultExit = fadeOut(androidx.compose.animation.core.tween(100)) +
+            slideOutHorizontally(androidx.compose.animation.core.tween(100)) { -it / 4 }
+    val defaultPopEnter = fadeIn(androidx.compose.animation.core.tween(150)) +
+            slideInHorizontally(androidx.compose.animation.core.tween(150)) { -it / 4 }
+    val defaultPopExit = fadeOut(androidx.compose.animation.core.tween(100)) +
+            slideOutHorizontally(androidx.compose.animation.core.tween(100)) { it / 4 }
 
     NavHost(
         navController = navController,
@@ -111,7 +118,7 @@ fun NavGraph(startDestination: String) {
             popExitTransition = { defaultPopExit }
         ) {
             val vm = viewModel {
-                HomeViewModel(container.createLibraryRepository(), container.createImageRepository())
+                HomeViewModel(container.createLibraryRepository(), container.createImageRepository(), container.downloadRepository)
             }
             val uiState by vm.uiState.collectAsState()
 
@@ -166,6 +173,9 @@ fun NavGraph(startDestination: String) {
                     viewModel = vm,
                     onItemClick = { itemId ->
                         navController.navigate(Screen.Detail.createRoute(itemId))
+                    },
+                    onGenreBrowse = { libId ->
+                        navController.navigate(Screen.Genre.createRoute(libId, "genres"))
                     }
                 )
             }
@@ -182,9 +192,12 @@ fun NavGraph(startDestination: String) {
             val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
             val vm = viewModel {
                 DetailViewModel(
-                    container.createLibraryRepository(),
-                    container.createImageRepository(),
-                    UUID.fromString(itemId)
+                    libraryRepo = container.createLibraryRepository(),
+                    imageRepo = container.createImageRepository(),
+                    itemId = UUID.fromString(itemId),
+                    downloadRepo = container.downloadRepository,
+                    serverUrl = container.serverUrl,
+                    accessToken = container.accessToken
                 )
             }
             DrawerWrappedScreen(
@@ -211,6 +224,34 @@ fun NavGraph(startDestination: String) {
                     }
                 )
             }
+        }
+
+        // Genre browsing
+        composable(
+            route = Screen.Genre.route,
+            arguments = listOf(
+                navArgument("libraryId") { type = NavType.StringType },
+                navArgument("genreName") { type = NavType.StringType }
+            ),
+            enterTransition = { defaultEnter },
+            exitTransition = { defaultExit },
+            popEnterTransition = { defaultPopEnter },
+            popExitTransition = { defaultPopExit }
+        ) { backStackEntry ->
+            val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
+            val vm = viewModel {
+                com.example.switchstream.ui.screens.genre.GenreViewModel(
+                    libraryRepo = container.createLibraryRepository(),
+                    imageRepo = container.createImageRepository(),
+                    libraryId = UUID.fromString(libraryId)
+                )
+            }
+            com.example.switchstream.ui.screens.genre.GenreScreen(
+                viewModel = vm,
+                onItemClick = { itemId ->
+                    navController.navigate(Screen.Detail.createRoute(itemId))
+                }
+            )
         }
 
         // Person filmography
@@ -273,6 +314,34 @@ fun NavGraph(startDestination: String) {
                 container = container
             ) {
                 SearchScreen(
+                    viewModel = vm,
+                    onItemClick = { itemId ->
+                        navController.navigate(Screen.Detail.createRoute(itemId))
+                    }
+                )
+            }
+        }
+
+        // Downloads
+        composable(
+            route = Screen.Downloads.route,
+            enterTransition = { defaultEnter },
+            exitTransition = { defaultExit },
+            popEnterTransition = { defaultPopEnter },
+            popExitTransition = { defaultPopExit }
+        ) {
+            val vm = viewModel {
+                com.example.switchstream.ui.screens.downloads.DownloadsViewModel(
+                    container.downloadRepository
+                )
+            }
+            DrawerWrappedScreen(
+                currentRoute = Screen.Downloads.route,
+                libraries = emptyList(),
+                navController = navController,
+                container = container
+            ) {
+                com.example.switchstream.ui.screens.downloads.DownloadsScreen(
                     viewModel = vm,
                     onItemClick = { itemId ->
                         navController.navigate(Screen.Detail.createRoute(itemId))
@@ -493,11 +562,13 @@ private fun DrawerWrappedScreen(
     content: @Composable () -> Unit
 ) {
     val sessionData by container.sessionManager.session.collectAsState(initial = null)
+    val isOnline by container.networkMonitor.isOnline.collectAsState()
 
     MainScaffold(
         currentRoute = currentRoute,
         libraries = libraries,
         username = sessionData?.username ?: "",
+        isOnline = isOnline,
         onNavigate = { route ->
             if (route != currentRoute) {
                 navController.navigate(route) {

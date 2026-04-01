@@ -45,7 +45,9 @@ data class PlayerUiState(
     val showUpNext: Boolean = false,
     val upNextCountdown: Int = 30,
     val showSkipIntro: Boolean = false,
-    val showSkipCredits: Boolean = false
+    val showSkipCredits: Boolean = false,
+    val showResumePrompt: Boolean = false,
+    val resumePositionMs: Long = 0L
 )
 
 enum class TrackDialogType { AUDIO, SUBTITLE }
@@ -84,6 +86,7 @@ class PlayerViewModel(
     private var introTimestamps: IntroTimestamps? = null
     private var introSkipped: Boolean = false
     private var creditsSkipped: Boolean = false
+    private var controlsHideJob: kotlinx.coroutines.Job? = null
 
     var onPlayNextEpisode: ((UUID) -> Unit)? = null
 
@@ -94,6 +97,7 @@ class PlayerViewModel(
         loadNextEpisode()
         loadIntroTimestamps()
         startPositionTracking()
+        restartHideTimer()
     }
 
     private fun loadSettings() {
@@ -116,15 +120,30 @@ class PlayerViewModel(
         player.setMediaItem(mediaItem)
         player.prepare()
 
-        // Resume from saved position, then play
+        // Check for resume position — always start playback, show prompt as overlay
         viewModelScope.launch {
             libraryRepo.getItemDetail(itemId).onSuccess { item ->
                 val positionTicks = item.userData?.playbackPositionTicks ?: 0
-                if (positionTicks > 0) {
-                    player.seekTo(positionTicks / 10_000)
+                val durationTicks = item.runTimeTicks ?: 0
+                val positionMs = positionTicks / 10_000
+                // Show prompt if > 30s watched and < 90% complete
+                if (positionMs > 30_000 && durationTicks > 0 && positionTicks < durationTicks * 9 / 10) {
+                    player.seekTo(positionMs)
+                    player.pause()
+                    _uiState.value = _uiState.value.copy(
+                        showResumePrompt = true,
+                        resumePositionMs = positionMs
+                    )
+                } else {
+                    if (positionMs > 0 && (durationTicks == 0L || positionTicks < durationTicks * 9 / 10)) {
+                        player.seekTo(positionMs)
+                    }
+                    player.play()
                 }
+            } ?: run {
+                // If detail fetch fails, just play from start
+                player.play()
             }
-            player.play()
         }
 
         player.addListener(object : Player.Listener {
@@ -171,6 +190,18 @@ class PlayerViewModel(
                 introTimestamps = timestamps
             }
         }
+    }
+
+    fun resumeFromPosition() {
+        player.seekTo(_uiState.value.resumePositionMs)
+        player.play()
+        _uiState.value = _uiState.value.copy(showResumePrompt = false)
+    }
+
+    fun startFromBeginning() {
+        player.seekTo(0)
+        player.play()
+        _uiState.value = _uiState.value.copy(showResumePrompt = false)
     }
 
     fun skipIntro() {
@@ -261,50 +292,18 @@ class PlayerViewModel(
         val tracks = _uiState.value.audioTracks
         if (index < 0 || index >= tracks.size) return
 
-        val track = tracks[index]
-        val trackGroups = player.currentTracks.groups
-        var audioGroupIndex = 0
-        for (group in trackGroups) {
-            if (group.type == C.TRACK_TYPE_AUDIO) {
-                if (audioGroupIndex == 0) {
-                    val override = TrackSelectionOverride(group.mediaTrackGroup, track.index)
-                    player.trackSelectionParameters = player.trackSelectionParameters
-                        .buildUpon()
-                        .setOverrideForType(override)
-                        .build()
-                    break
-                }
-                audioGroupIndex++
-            }
-        }
-
+        // Close dialog immediately
         _uiState.value = _uiState.value.copy(
             selectedAudioIndex = index,
             showTrackDialog = null
         )
-    }
 
-    fun selectSubtitleTrack(index: Int) {
-        if (index == -1) {
-            // Disable subtitles
-            player.trackSelectionParameters = player.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                .build()
-        } else {
-            val tracks = _uiState.value.subtitleTracks
-            if (index < 0 || index >= tracks.size) return
-
-            val track = tracks[index]
-            // Re-enable subtitle track type
-            player.trackSelectionParameters = player.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                .build()
-
-            val trackGroups = player.currentTracks.groups
-            for (group in trackGroups) {
-                if (group.type == C.TRACK_TYPE_TEXT) {
+        // Apply track override after UI recomposes
+        val track = tracks[index]
+        viewModelScope.launch {
+            delay(100)
+            for (group in player.currentTracks.groups) {
+                if (group.type == C.TRACK_TYPE_AUDIO) {
                     val override = TrackSelectionOverride(group.mediaTrackGroup, track.index)
                     player.trackSelectionParameters = player.trackSelectionParameters
                         .buildUpon()
@@ -314,11 +313,45 @@ class PlayerViewModel(
                 }
             }
         }
+    }
 
+    fun selectSubtitleTrack(index: Int) {
+        // Close dialog immediately
         _uiState.value = _uiState.value.copy(
             selectedSubtitleIndex = index,
             showTrackDialog = null
         )
+
+        // Apply after UI recomposes
+        viewModelScope.launch {
+            delay(100)
+            if (index == -1) {
+                player.trackSelectionParameters = player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            } else {
+                val tracks = _uiState.value.subtitleTracks
+                if (index < 0 || index >= tracks.size) return@launch
+
+                val track = tracks[index]
+                player.trackSelectionParameters = player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .build()
+
+                for (group in player.currentTracks.groups) {
+                    if (group.type == C.TRACK_TYPE_TEXT) {
+                        val override = TrackSelectionOverride(group.mediaTrackGroup, track.index)
+                        player.trackSelectionParameters = player.trackSelectionParameters
+                            .buildUpon()
+                            .setOverrideForType(override)
+                            .build()
+                        break
+                    }
+                }
+            }
+        }
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -351,8 +384,10 @@ class PlayerViewModel(
     fun togglePlayPause() {
         if (player.isPlaying) {
             player.pause()
+            controlsHideJob?.cancel()
         } else {
             player.play()
+            restartHideTimer()
         }
     }
 
@@ -374,13 +409,19 @@ class PlayerViewModel(
 
     fun showControls() {
         _uiState.value = _uiState.value.copy(showControls = true)
-        if (_uiState.value.isPlaying) {
-            viewModelScope.launch {
-                delay(5000)
-                if (_uiState.value.isPlaying) {
-                    _uiState.value = _uiState.value.copy(showControls = false)
-                }
-            }
+        restartHideTimer()
+    }
+
+    fun hideControls() {
+        controlsHideJob?.cancel()
+        _uiState.value = _uiState.value.copy(showControls = false)
+    }
+
+    private fun restartHideTimer() {
+        controlsHideJob?.cancel()
+        controlsHideJob = viewModelScope.launch {
+            delay(2500)
+            _uiState.value = _uiState.value.copy(showControls = false)
         }
     }
 

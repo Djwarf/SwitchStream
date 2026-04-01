@@ -29,10 +29,12 @@ import com.example.switchstream.ui.components.HeroCarousel
 import com.example.switchstream.ui.components.LoadingIndicator
 import com.example.switchstream.ui.components.ShimmerHomeScreen
 import com.example.switchstream.ui.components.SectionHeader
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -40,6 +42,7 @@ fun HomeScreen(
     onLibraryClick: (libraryId: String, libraryName: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val dims = LocalDimensions.current
 
     Box(
         modifier = Modifier
@@ -48,16 +51,40 @@ fun HomeScreen(
     ) {
         when {
             uiState.isLoading -> ShimmerHomeScreen()
+            uiState.isOffline && uiState.offlineItems.isNotEmpty() -> OfflineContent(
+                items = uiState.offlineItems,
+                onItemClick = onItemClick
+            )
             uiState.error != null -> ErrorState(
                 message = uiState.error!!,
                 onRetry = viewModel::refresh
             )
-            else -> HomeContent(
-                uiState = uiState,
-                imageRepo = viewModel.imageRepo,
-                onItemClick = onItemClick,
-                onLibraryClick = onLibraryClick
-            )
+            else -> {
+                if (!dims.isTV) {
+                    // Mobile/Tablet: pull-to-refresh wrapper
+                    val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+                    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                        isRefreshing = uiState.isLoading,
+                        onRefresh = viewModel::refresh,
+                        state = pullState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        HomeContent(
+                            uiState = uiState,
+                            imageRepo = viewModel.imageRepo,
+                            onItemClick = onItemClick,
+                            onLibraryClick = onLibraryClick
+                        )
+                    }
+                } else {
+                    HomeContent(
+                        uiState = uiState,
+                        imageRepo = viewModel.imageRepo,
+                        onItemClick = onItemClick,
+                        onLibraryClick = onLibraryClick
+                    )
+                }
+            }
         }
     }
 }
@@ -69,6 +96,7 @@ private fun HomeContent(
     onItemClick: (String) -> Unit,
     onLibraryClick: (String, String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     val hasContent = uiState.featuredItems.isNotEmpty() ||
             uiState.recentlyAdded.isNotEmpty() ||
             uiState.continueWatching.isNotEmpty() ||
@@ -162,6 +190,19 @@ private fun HomeContent(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
+
+        // "Because you watched" recommendation rows
+        for (row in uiState.recommendations) {
+            item { SectionHeader(title = "Because you watched ${row.sourceTitle}") }
+            item {
+                MediaRow(
+                    items = row.items,
+                    imageRepo = imageRepo,
+                    onItemClick = onItemClick
+                )
+            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+        }
     }
 }
 
@@ -175,8 +216,9 @@ private fun ContinueWatchingRow(
     imageRepo: ImageRepository,
     onItemClick: (String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
+        contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(items, key = { it.id }) { item ->
@@ -207,8 +249,9 @@ private fun NextUpRow(
     imageRepo: ImageRepository,
     onItemClick: (String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
+        contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(items, key = { it.id }) { item ->
@@ -244,18 +287,22 @@ private fun MediaRow(
     imageRepo: ImageRepository,
     onItemClick: (String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp),
+        contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(items, key = { it.id }) { item ->
             val year = item.productionYear?.toString()
+            val unplayed = item.userData?.unplayedItemCount ?: 0
+            val badgeText = if (unplayed > 0) "$unplayed NEW" else null
             EditorialCard(
                 title = item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(item.id),
                 subtitle = year,
                 typeIcon = itemTypeIcon(item),
-                onClick = { onItemClick(item.id.toString()) }
+                onClick = { onItemClick(item.id.toString()) },
+                badge = badgeText
             )
         }
     }
@@ -297,4 +344,38 @@ private fun itemTypeIcon(item: BaseItemDto): ImageVector? = when (item.type) {
     BaseItemKind.SERIES -> Icons.Outlined.Tv
     BaseItemKind.EPISODE -> Icons.Outlined.Tv
     else -> null
+}
+
+@Composable
+private fun OfflineContent(
+    items: List<com.example.switchstream.data.db.DownloadedMedia>,
+    onItemClick: (String) -> Unit
+) {
+    val dims = LocalDimensions.current
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = dims.topBarClearance + 16.dp,
+            bottom = 48.dp
+        )
+    ) {
+        item {
+            SectionHeader(title = "Available Offline")
+        }
+        item {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = dims.screenPadding),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                items(items, key = { it.itemId }) { download ->
+                    EditorialCard(
+                        title = download.title,
+                        imageUrl = download.thumbnailUrl,
+                        subtitle = download.seriesName,
+                        onClick = { onItemClick(download.itemId) }
+                    )
+                }
+            }
+        }
+    }
 }

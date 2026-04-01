@@ -26,6 +26,7 @@ import com.example.switchstream.ui.components.SwitchStreamTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import com.example.switchstream.ui.theme.TextSecondary
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -36,12 +37,14 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     onItemClick: (itemId: String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
+            .padding(top = dims.topBarClearance)
     ) {
         SectionHeader("Search")
 
@@ -59,7 +62,7 @@ fun SearchScreen(
                 text = "${uiState.results.size} results",
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary,
-                modifier = Modifier.padding(horizontal = 56.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 8.dp)
             )
         }
 
@@ -77,8 +80,8 @@ fun SearchScreen(
             }
             else -> {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 200.dp),
-                    contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp),
+                    columns = GridCells.Adaptive(minSize = dims.gridMinCellSize),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize()

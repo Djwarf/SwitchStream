@@ -29,18 +29,27 @@ import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
 import com.example.switchstream.ui.components.EditorialCard
 import org.jellyfin.sdk.model.api.BaseItemKind
+import com.example.switchstream.ui.components.FocusableButton
 import com.example.switchstream.ui.components.FilterSortBar
 import com.example.switchstream.ui.components.LoadingIndicator
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import com.example.switchstream.ui.theme.TextPrimary
 
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
-    onItemClick: (itemId: String) -> Unit
+    onItemClick: (itemId: String) -> Unit,
+    onGenreBrowse: ((libraryId: String) -> Unit)? = null
 ) {
+    val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
     val gridState = rememberLazyGridState()
+
+    // Scroll to top when sort/filter changes
+    LaunchedEffect(uiState.sortBy, uiState.sortOrder, uiState.selectedGenres, uiState.watchedFilter) {
+        gridState.scrollToItem(0)
+    }
 
     // Infinite scroll trigger
     val shouldLoadMore by remember {
@@ -51,7 +60,7 @@ fun LibraryScreen(
     }
 
     LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore && uiState.hasMore && !uiState.isLoadingMore) {
+        if (shouldLoadMore && uiState.hasMore && !uiState.isLoadingMore && !uiState.isLoading) {
             viewModel.loadMore()
         }
     }
@@ -61,12 +70,14 @@ fun LibraryScreen(
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
     ) {
-        // Header
+        // Header — offset below floating nav on mobile/tablet
         Text(
             text = uiState.libraryName,
             style = MaterialTheme.typography.headlineLarge,
             color = TextPrimary,
-            modifier = Modifier.padding(horizontal = 56.dp, vertical = 24.dp)
+            modifier = Modifier
+                .padding(top = dims.topBarClearance)
+                .padding(horizontal = dims.screenPadding, vertical = 24.dp)
         )
 
         FilterSortBar(
@@ -78,7 +89,10 @@ fun LibraryScreen(
             selectedGenres = uiState.selectedGenres,
             onGenreToggle = viewModel::toggleGenre,
             watchedFilter = uiState.watchedFilter,
-            onWatchedFilterChange = viewModel::setWatchedFilter
+            onWatchedFilterChange = viewModel::setWatchedFilter,
+            onGenreBrowse = if (onGenreBrowse != null) {
+                { onGenreBrowse(uiState.libraryId) }
+            } else null
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -87,9 +101,9 @@ fun LibraryScreen(
             LoadingIndicator()
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 240.dp),
+                columns = GridCells.Adaptive(minSize = dims.gridMinCellSize),
                 state = gridState,
-                contentPadding = PaddingValues(horizontal = 56.dp, vertical = 16.dp),
+                contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxSize()

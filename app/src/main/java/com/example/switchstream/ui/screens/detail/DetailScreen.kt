@@ -3,6 +3,7 @@ package com.example.switchstream.ui.screens.detail
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -32,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -53,6 +56,7 @@ import com.example.switchstream.ui.components.ShimmerDetailScreen
 import com.example.switchstream.ui.components.PersonCard
 import com.example.switchstream.ui.components.SeasonSelector
 import com.example.switchstream.ui.components.SectionHeader
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.AccentBlue
 import com.example.switchstream.ui.theme.GlassBorder
 import com.example.switchstream.ui.theme.GlassSurface
@@ -89,6 +93,7 @@ fun DetailScreen(
                 onSeasonSelected = viewModel::selectSeason,
                 onToggleFavorite = viewModel::toggleFavorite,
                 onTogglePlayed = viewModel::togglePlayed,
+                onToggleDownload = viewModel::toggleDownload,
                 onPersonClick = onPersonClick
             )
         }
@@ -103,128 +108,116 @@ private fun DetailContent(
     onSeasonSelected: (Int) -> Unit,
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
+    onToggleDownload: () -> Unit,
     onPersonClick: (personId: String, personName: String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     val item = uiState.item ?: return
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Backdrop with gradient overlay
+        // Compact header: poster + info
         item {
-            Box(
+            Spacer(modifier = Modifier.height(dims.topBarClearance + 16.dp))
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(400.dp)
+                    .padding(horizontal = dims.screenPadding),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                // Poster
                 AsyncImage(
-                    model = imageRepo.getBackdropUrl(item.id),
+                    model = imageRepo.getPrimaryImageUrl(item.id),
                     contentDescription = item.name,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0f to PureBlack.copy(alpha = 0f),
-                                    0.2f to PureBlack.copy(alpha = 0.2f),
-                                    0.85f to PureBlack.copy(alpha = 0.85f),
-                                    1f to PureBlack
-                                )
-                            )
-                        )
-                )
-            }
-        }
 
-        // Title
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 56.dp)
-            ) {
-                Text(
-                    text = item.name ?: "",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = TextPrimary
-                )
+                // Info column
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.name ?: "",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TextPrimary,
+                        maxLines = 2
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // Metadata row
-                Row {
-                    item.productionYear?.let { year ->
-                        Text(
-                            text = year.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextSecondary
-                        )
+                    // Metadata row
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        item.productionYear?.let { year ->
+                            Text(text = year.toString(), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        }
+                        item.runTimeTicks?.let { ticks ->
+                            val minutes = ticks / 600_000_000
+                            Text(text = "\u00B7 ${minutes}min", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        }
+                        item.officialRating?.let { rating ->
+                            Text(text = "\u00B7 $rating", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        }
                     }
-                    item.runTimeTicks?.let { ticks ->
-                        val minutes = ticks / 600_000_000
-                        Text(
-                            text = "  \u00B7${minutes}min",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextSecondary
-                        )
-                    }
-                    item.officialRating?.let { rating ->
-                        Text(
-                            text = "  \u00B7$rating",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextSecondary
-                        )
-                    }
+
                     item.communityRating?.let { rating ->
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "  \u00B7\u2606${"%.1f".format(rating)}",
+                            text = "\u2606 ${"%.1f".format(rating)}",
                             style = MaterialTheme.typography.labelMedium,
                             color = AccentBlue
                         )
                     }
-                    // Series info: season count
+
                     if (uiState.isSeries && uiState.seasons.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "  \u00B7${uiState.seasons.size} Season${if (uiState.seasons.size != 1) "s" else ""}",
+                            text = "${uiState.seasons.size} Season${if (uiState.seasons.size != 1) "s" else ""}",
                             style = MaterialTheme.typography.labelMedium,
                             color = TextSecondary
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // Play button
-                if (uiState.isSeries) {
-                    val nextUp = uiState.nextUpEpisode
-                    val playText = if (nextUp != null) {
-                        val s = nextUp.parentIndexNumber ?: 1
-                        val e = nextUp.indexNumber ?: 1
-                        "Resume S${s}:E${e}"
+                    // Play button
+                    if (uiState.isSeries) {
+                        val nextUp = uiState.nextUpEpisode
+                        val playText = if (nextUp != null) {
+                            val s = nextUp.parentIndexNumber ?: 1
+                            val e = nextUp.indexNumber ?: 1
+                            "Resume S${s}:E${e}"
+                        } else {
+                            "Play S1:E1"
+                        }
+                        val playId = if (nextUp != null) {
+                            nextUp.id.toString()
+                        } else {
+                            uiState.episodes.firstOrNull()?.id?.toString() ?: item.id.toString()
+                        }
+                        FocusableButton(
+                            text = playText,
+                            onClick = { onPlayClick(playId) }
+                        )
                     } else {
-                        "Play S1:E1"
+                        FocusableButton(
+                            text = "Play",
+                            onClick = { onPlayClick(item.id.toString()) }
+                        )
                     }
-                    val playId = if (nextUp != null) {
-                        nextUp.id.toString()
-                    } else {
-                        uiState.episodes.firstOrNull()?.id?.toString() ?: item.id.toString()
-                    }
-                    FocusableButton(
-                        text = playText,
-                        onClick = { onPlayClick(playId) }
-                    )
-                } else {
-                    FocusableButton(
-                        text = "Play",
-                        onClick = { onPlayClick(item.id.toString()) }
-                    )
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(16.dp))
+        // Action buttons row
+        item {
+            Row(
+                modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
 
                 // Action buttons row (Favorite + Watched)
                 Row(
@@ -234,7 +227,9 @@ private fun DetailContent(
                     // Favorite button
                     Surface(
                         onClick = onToggleFavorite,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { onToggleFavorite() },
                         shape = ClickableSurfaceDefaults.shape(
                             shape = RoundedCornerShape(12.dp)
                         ),
@@ -265,7 +260,9 @@ private fun DetailContent(
                     // Watched toggle button
                     Surface(
                         onClick = onTogglePlayed,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { onTogglePlayed() },
                         shape = ClickableSurfaceDefaults.shape(
                             shape = RoundedCornerShape(12.dp)
                         ),
@@ -292,10 +289,57 @@ private fun DetailContent(
                             )
                         }
                     }
+                    // Download button (mobile/tablet only)
+                    if (!com.example.switchstream.ui.theme.LocalDimensions.current.isTV) Surface(
+                        onClick = onToggleDownload,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { onToggleDownload() },
+                        shape = ClickableSurfaceDefaults.shape(
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = GlassSurface,
+                            focusedContainerColor = GlassSurface
+                        ),
+                        border = ClickableSurfaceDefaults.border(
+                            border = Border(
+                                border = BorderStroke(1.dp, GlassBorder),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        )
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                imageVector = when (uiState.downloadState) {
+                                    com.example.switchstream.data.db.DownloadState.COMPLETE -> Icons.Filled.CheckCircle
+                                    else -> Icons.Outlined.CloudDownload
+                                },
+                                contentDescription = "Download",
+                                tint = when (uiState.downloadState) {
+                                    com.example.switchstream.data.db.DownloadState.COMPLETE -> AccentBlue
+                                    com.example.switchstream.data.db.DownloadState.DOWNLOADING,
+                                    com.example.switchstream.data.db.DownloadState.QUEUED -> AccentBlue.copy(alpha = 0.5f)
+                                    else -> TextSecondary
+                                },
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
+        // Overview section
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = dims.screenPadding)
+            ) {
                 // Tagline
                 if (!item.taglines.isNullOrEmpty()) {
                     Text(
@@ -320,6 +364,7 @@ private fun DetailContent(
                         Spacer(modifier = Modifier.height(4.dp))
                         Surface(
                             onClick = { expanded = !expanded },
+                            modifier = Modifier.clickable { expanded = !expanded },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(4.dp)),
                             colors = ClickableSurfaceDefaults.colors(
                                 containerColor = GlassSurface,
@@ -349,7 +394,7 @@ private fun DetailContent(
         if (genres.isNotEmpty()) {
             item {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 56.dp),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(genres, key = { it }) { genre ->
@@ -378,7 +423,7 @@ private fun DetailContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 56.dp)
+                    .padding(horizontal = dims.screenPadding)
             ) {
                 // Director
                 val directors = item.people.orEmpty().filter { it.type == PersonKind.DIRECTOR }
@@ -423,7 +468,7 @@ private fun DetailContent(
                     episode = episode,
                     imageUrl = imageRepo.getPrimaryImageUrl(episode.id),
                     onClick = { onPlayClick(episode.id.toString()) },
-                    modifier = Modifier.padding(horizontal = 56.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 4.dp)
                 )
             }
         }
@@ -437,7 +482,7 @@ private fun DetailContent(
             }
             item {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 56.dp),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(people, key = { it.id ?: it.hashCode() }) { person ->
@@ -463,7 +508,7 @@ private fun DetailContent(
             }
             item {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 56.dp),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding),
                     horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     items(uiState.similarItems, key = { it.id }) { similarItem ->

@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -167,60 +168,53 @@ private fun SkeletonCard() {
 
 @Composable
 fun ShimmerDetailScreen() {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Backdrop with glow
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(450.dp)
+    val dims = com.example.switchstream.ui.theme.LocalDimensions.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = dims.topBarClearance + 16.dp)
+    ) {
+        // Compact header: poster + info skeleton
+        Row(
+            modifier = Modifier.padding(horizontal = dims.screenPadding),
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            SkeletonBox(
-                modifier = Modifier.fillMaxSize(),
-                cornerRadius = 0.dp
-            )
-            val t = pulsingAlpha()
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                AccentBlue.copy(alpha = 0.04f * t),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Column(modifier = Modifier.padding(horizontal = 56.dp)) {
-            // Title
+            // Poster placeholder
             SkeletonBox(
                 modifier = Modifier
-                    .width(320.dp)
-                    .height(28.dp),
-                cornerRadius = 8.dp
+                    .width(120.dp)
+                    .height(180.dp)
             )
-            Spacer(modifier = Modifier.height(14.dp))
-            // Meta line
-            SkeletonBox(
-                modifier = Modifier
-                    .width(200.dp)
-                    .height(14.dp),
-                cornerRadius = 4.dp
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            // Play button placeholder
-            SkeletonBox(
+            Column(modifier = Modifier.weight(1f)) {
+                // Title
+                SkeletonBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .height(24.dp),
+                    cornerRadius = 6.dp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                // Meta
+                SkeletonBox(
+                    modifier = Modifier
+                        .width(160.dp)
+                        .height(14.dp),
+                    cornerRadius = 4.dp
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                // Play button placeholder
+                SkeletonBox(
                 modifier = Modifier
                     .width(140.dp)
                     .height(48.dp)
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            // Overview lines
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Overview lines
+        Column(modifier = Modifier.padding(horizontal = dims.screenPadding)) {
             SkeletonBox(
                 modifier = Modifier
                     .fillMaxWidth()

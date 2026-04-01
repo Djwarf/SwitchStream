@@ -7,15 +7,21 @@ import com.example.switchstream.data.SettingsManager
 import com.example.switchstream.data.repository.AuthRepository
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
+import com.example.switchstream.data.NetworkMonitor
+import com.example.switchstream.data.db.AppDatabase
+import com.example.switchstream.data.repository.DownloadRepository
 import com.example.switchstream.data.repository.PlaybackRepository
 import org.jellyfin.sdk.api.client.ApiClient
 import java.util.UUID
 
-class AppContainer(context: Context) {
+class AppContainer(private val context: Context) {
 
     val jellyfinClient = JellyfinClient(context)
     val sessionManager = SessionManager(context)
     val settingsManager = SettingsManager(context)
+    val database = AppDatabase.getInstance(context)
+    val networkMonitor = NetworkMonitor(context)
+    val downloadRepository = DownloadRepository(context, database)
 
     var apiClient: ApiClient? = null
         private set
@@ -26,6 +32,9 @@ class AppContainer(context: Context) {
     var serverUrl: String = ""
         private set
 
+    var accessToken: String = ""
+        private set
+
     fun setServerConnection(serverUrl: String) {
         this.serverUrl = serverUrl
         this.apiClient = jellyfinClient.createApi(serverUrl)
@@ -34,6 +43,7 @@ class AppContainer(context: Context) {
     fun setAuthenticated(serverUrl: String, accessToken: String, userId: UUID) {
         this.serverUrl = serverUrl
         this.userId = userId
+        this.accessToken = accessToken
         this.apiClient = jellyfinClient.createApi(serverUrl, accessToken)
     }
 

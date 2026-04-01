@@ -1,5 +1,6 @@
 package com.example.switchstream.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -56,6 +57,7 @@ fun SeasonSelector(
             Surface(
                 onClick = { onSeasonSelected(index) },
                 modifier = Modifier
+                    .clickable { onSeasonSelected(index) }
                     .onFocusChanged { isFocused = it.isFocused },
                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
                 colors = ClickableSurfaceDefaults.colors(

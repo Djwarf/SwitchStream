@@ -23,7 +23,10 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.PictureInPicture
+import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,6 +44,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.example.switchstream.ui.components.FocusableButton
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.AccentBlue
 import com.example.switchstream.ui.theme.GlassBorder
 import com.example.switchstream.ui.theme.GlassSurface
@@ -56,6 +60,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onSwitchServer: () -> Unit = {}
 ) {
+    val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
     val playback = uiState.playbackSettings
 
@@ -67,8 +72,10 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f)),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = 56.dp,
-            vertical = 32.dp
+            start = dims.screenPadding,
+            end = dims.screenPadding,
+            top = dims.topBarClearance + 32.dp,
+            bottom = 32.dp
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -152,6 +159,56 @@ fun SettingsScreen(
                 value = if (playback.pictureInPictureEnabled) "On" else "Off",
                 valueColor = if (playback.pictureInPictureEnabled) AccentBlue else TextSecondary,
                 onClick = { viewModel.updatePipEnabled(!playback.pictureInPictureEnabled) }
+            )
+        }
+
+        // Subtitle section
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Subtitles",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+
+        item {
+            val sizeOptions = listOf(12, 14, 16, 20, 24)
+            val sizeLabels = listOf("Small", "Medium", "Default", "Large", "Extra Large")
+            val currentIdx = sizeOptions.indexOf(playback.subtitleFontSize).coerceAtLeast(0)
+            SettingsTile(
+                icon = Icons.Outlined.FormatSize,
+                label = "Font Size",
+                value = sizeLabels[currentIdx],
+                onClick = {
+                    val next = (currentIdx + 1) % sizeOptions.size
+                    viewModel.updateSubtitleFontSize(sizeOptions[next])
+                }
+            )
+        }
+
+        item {
+            val opacityOptions = listOf(0f, 0.25f, 0.5f, 0.75f, 1f)
+            val opacityLabels = listOf("Off", "25%", "50%", "75%", "100%")
+            val currentIdx = opacityOptions.indexOf(playback.subtitleBackgroundOpacity).coerceAtLeast(0)
+            SettingsTile(
+                icon = Icons.Outlined.Opacity,
+                label = "Background Opacity",
+                value = opacityLabels[currentIdx],
+                onClick = {
+                    val next = (currentIdx + 1) % opacityOptions.size
+                    viewModel.updateSubtitleBackgroundOpacity(opacityOptions[next])
+                }
+            )
+        }
+
+        item {
+            SettingsTile(
+                icon = Icons.Outlined.ScreenRotation,
+                label = "Lock Landscape in Player",
+                value = if (playback.lockLandscapeDuringPlayback) "On" else "Off",
+                valueColor = if (playback.lockLandscapeDuringPlayback) AccentBlue else TextSecondary,
+                onClick = { viewModel.updateLockLandscape(!playback.lockLandscapeDuringPlayback) }
             )
         }
 

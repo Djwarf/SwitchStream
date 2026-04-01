@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
+import com.example.switchstream.util.isNetworkError
 import com.example.switchstream.ui.components.WatchedFilter
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.ItemFilter
@@ -21,6 +22,7 @@ data class LibraryUiState(
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = true,
     val error: String? = null,
+    val libraryId: String = "",
     val libraryName: String = "",
     val sortBy: ItemSortBy = ItemSortBy.SORT_NAME,
     val sortOrder: SortOrder = SortOrder.ASCENDING,
@@ -37,10 +39,11 @@ class LibraryViewModel(
     libraryName: String
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(LibraryUiState(libraryName = libraryName))
+    private val _uiState = MutableStateFlow(LibraryUiState(libraryId = libraryId.toString(), libraryName = libraryName))
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
     private val pageSize = 50
+    private var loadJob: kotlinx.coroutines.Job? = null
 
     init {
         loadItems()
@@ -102,7 +105,8 @@ class LibraryViewModel(
     }
 
     private fun loadItems() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             val state = _uiState.value
             val itemFilters = when (state.watchedFilter) {
                 WatchedFilter.ALL -> null
@@ -129,7 +133,7 @@ class LibraryViewModel(
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = "Failed to load: ${e.message}"
+                        error = if (isNetworkError(e)) "You're offline" else "Failed to load: ${e.message}"
                     )
                 }
             )
@@ -142,7 +146,7 @@ class LibraryViewModel(
 
         _uiState.value = state.copy(isLoadingMore = true)
 
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             val itemFilters = when (state.watchedFilter) {
                 WatchedFilter.ALL -> null
                 WatchedFilter.WATCHED -> listOf(ItemFilter.IS_PLAYED)

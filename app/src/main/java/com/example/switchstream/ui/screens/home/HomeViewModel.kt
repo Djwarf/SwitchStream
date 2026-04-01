@@ -5,11 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
 import org.jellyfin.sdk.model.api.BaseItemDto
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+data class RecommendationRow(
+    val sourceTitle: String,
+    val items: List<BaseItemDto>
+)
 
 data class HomeUiState(
     val libraries: List<BaseItemDto> = emptyList(),
@@ -19,13 +26,17 @@ data class HomeUiState(
     val recentlyAdded: List<BaseItemDto> = emptyList(),
     val favorites: List<BaseItemDto> = emptyList(),
     val latestByLibrary: Map<UUID, List<BaseItemDto>> = emptyMap(),
+    val recommendations: List<RecommendationRow> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val isOffline: Boolean = false,
+    val offlineItems: List<com.example.switchstream.data.db.DownloadedMedia> = emptyList()
 )
 
 class HomeViewModel(
     private val libraryRepo: LibraryRepository,
-    val imageRepo: ImageRepository
+    val imageRepo: ImageRepository,
+    private val downloadRepo: com.example.switchstream.data.repository.DownloadRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -41,21 +52,25 @@ class HomeViewModel(
 
             libraryRepo.getLibraries().fold(
                 onSuccess = { libs ->
-                    // Fetch all sections, then batch into a single state update
-                    val continueWatching = libraryRepo.getResumeItems().getOrNull() ?: emptyList()
-                    val nextUp = libraryRepo.getNextUp(limit = 10).getOrNull() ?: emptyList()
-                    val suggestions = libraryRepo.getSuggestions(limit = 8).getOrNull() ?: emptyList()
-                    val recentlyAdded = libraryRepo.getRecentlyAdded(limit = 20).getOrNull() ?: emptyList()
-                    val favorites = libraryRepo.getFavorites(limit = 16).getOrNull() ?: emptyList()
+                    // Fetch all sections in parallel
+                    val continueWatchingDef = async { libraryRepo.getResumeItems().getOrNull() ?: emptyList() }
+                    val nextUpDef = async { libraryRepo.getNextUp(limit = 10).getOrNull() ?: emptyList() }
+                    val suggestionsDef = async { libraryRepo.getSuggestions(limit = 8).getOrNull() ?: emptyList() }
+                    val recentlyAddedDef = async { libraryRepo.getRecentlyAdded(limit = 20).getOrNull() ?: emptyList() }
+                    val favoritesDef = async { libraryRepo.getFavorites(limit = 16).getOrNull() ?: emptyList() }
 
-                    val latestMap = mutableMapOf<UUID, List<BaseItemDto>>()
-                    for (lib in libs) {
-                        libraryRepo.getLatestMedia(lib.id).onSuccess { items ->
-                            latestMap[lib.id] = items
-                        }
+                    // Fetch per-library items in parallel
+                    val latestDefs = libs.map { lib ->
+                        async { lib.id to (libraryRepo.getLatestMedia(lib.id).getOrNull() ?: emptyList()) }
                     }
 
-                    // Fallback for featured items if suggestions API fails
+                    val continueWatching = continueWatchingDef.await()
+                    val nextUp = nextUpDef.await()
+                    val suggestions = suggestionsDef.await()
+                    val recentlyAdded = recentlyAddedDef.await()
+                    val favorites = favoritesDef.await()
+                    val latestMap = latestDefs.awaitAll().toMap()
+
                     val featured = suggestions.ifEmpty {
                         latestMap.values.flatten().take(8)
                     }
@@ -70,14 +85,56 @@ class HomeViewModel(
                         latestByLibrary = latestMap,
                         isLoading = false
                     )
+
+                    // Load "Because you watched" recommendations in background
+                    loadRecommendations(continueWatching)
                 },
                 onFailure = { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "Failed to load: ${e.message}"
-                    )
+                    // Offline fallback — show downloaded content
+                    loadOfflineContent()
+                    if (_uiState.value.offlineItems.isEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "Failed to load: ${e.message}"
+                        )
+                    }
                 }
             )
+        }
+    }
+
+    private fun loadRecommendations(recentItems: List<BaseItemDto>) {
+        viewModelScope.launch {
+            // Take up to 3 recently watched items for recommendations
+            val sources = recentItems
+                .filter { it.seriesId != null || it.type == org.jellyfin.sdk.model.api.BaseItemKind.MOVIE }
+                .take(3)
+
+            val rows = sources.mapNotNull { item ->
+                val sourceId = item.seriesId ?: item.id
+                val sourceName = item.seriesName ?: item.name ?: return@mapNotNull null
+                val similar = libraryRepo.getSimilarItems(sourceId).getOrNull() ?: emptyList()
+                if (similar.isNotEmpty()) RecommendationRow(sourceName, similar.take(12))
+                else null
+            }
+
+            if (rows.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(recommendations = rows)
+            }
+        }
+    }
+
+    private fun loadOfflineContent() {
+        if (downloadRepo == null) return
+        viewModelScope.launch {
+            downloadRepo.getCompletedDownloads().collect { downloads ->
+                _uiState.value = _uiState.value.copy(
+                    offlineItems = downloads,
+                    isOffline = true,
+                    isLoading = false,
+                    error = null
+                )
+            }
         }
     }
 

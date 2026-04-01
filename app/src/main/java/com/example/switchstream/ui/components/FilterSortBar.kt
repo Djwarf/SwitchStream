@@ -1,7 +1,10 @@
 package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,12 +75,15 @@ fun FilterSortBar(
     onGenreToggle: (String) -> Unit,
     watchedFilter: WatchedFilter,
     onWatchedFilterChange: (WatchedFilter) -> Unit,
+    onGenreBrowse: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Sort button - cycles through options
         FilterChip(
@@ -116,6 +122,15 @@ fun FilterSortBar(
 
         Spacer(modifier = Modifier.width(4.dp))
 
+        // Browse by Genre chip
+        if (onGenreBrowse != null) {
+            FilterChip(
+                label = "Genres",
+                isActive = true,
+                onClick = onGenreBrowse
+            )
+        }
+
         // Genre chips
         if (availableGenres.isNotEmpty()) {
             LazyRow(
@@ -147,7 +162,9 @@ private fun FilterChip(
 
     Surface(
         onClick = onClick,
-        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
+        modifier = modifier
+            .clickable { onClick() }
+            .onFocusChanged { isFocused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = SurfaceVariant,
@@ -174,6 +191,7 @@ private fun FilterChip(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = if (isActive) AccentBlue else TextSecondary,
+            maxLines = 1,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
         )
     }
@@ -189,7 +207,9 @@ private fun SortOrderChip(
 
     Surface(
         onClick = onClick,
-        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
+        modifier = modifier
+            .clickable { onClick() }
+            .onFocusChanged { isFocused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = SurfaceVariant,

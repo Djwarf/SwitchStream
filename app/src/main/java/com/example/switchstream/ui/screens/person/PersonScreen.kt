@@ -23,6 +23,7 @@ import com.example.switchstream.ui.components.EditorialCard
 import com.example.switchstream.ui.components.EmptyState
 import com.example.switchstream.ui.components.ErrorState
 import com.example.switchstream.ui.components.ShimmerHomeScreen
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import com.example.switchstream.ui.theme.TextPrimary
 import com.example.switchstream.ui.theme.TextSecondary
@@ -61,16 +62,17 @@ private fun PersonContent(
     imageRepo: com.example.switchstream.data.repository.ImageRepository,
     onItemClick: (String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 32.dp)
+            .padding(top = dims.topBarClearance + 32.dp)
     ) {
         Text(
             text = uiState.personName,
             style = MaterialTheme.typography.headlineLarge,
             color = TextPrimary,
-            modifier = Modifier.padding(horizontal = 56.dp)
+            modifier = Modifier.padding(horizontal = dims.screenPadding)
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -79,14 +81,14 @@ private fun PersonContent(
             text = "${uiState.items.size} title${if (uiState.items.size != 1) "s" else ""}",
             style = MaterialTheme.typography.bodyMedium,
             color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 56.dp)
+            modifier = Modifier.padding(horizontal = dims.screenPadding)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 180.dp),
-            contentPadding = PaddingValues(horizontal = 56.dp, vertical = 8.dp),
+            columns = GridCells.Adaptive(minSize = dims.gridMinCellSize),
+            contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {

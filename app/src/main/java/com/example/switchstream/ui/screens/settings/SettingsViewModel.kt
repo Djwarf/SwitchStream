@@ -99,4 +99,16 @@ class SettingsViewModel(
     fun updatePipEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsManager.updatePipEnabled(enabled) }
     }
+
+    fun updateSubtitleFontSize(size: Int) {
+        viewModelScope.launch { settingsManager.updateSubtitleFontSize(size) }
+    }
+
+    fun updateSubtitleBackgroundOpacity(opacity: Float) {
+        viewModelScope.launch { settingsManager.updateSubtitleBackgroundOpacity(opacity) }
+    }
+
+    fun updateLockLandscape(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.updateLockLandscape(enabled) }
+    }
 }

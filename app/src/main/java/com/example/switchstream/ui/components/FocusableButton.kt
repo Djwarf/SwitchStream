@@ -1,6 +1,7 @@
 package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -32,11 +33,14 @@ fun FocusableButton(
     enabled: Boolean = true
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val haptic = com.example.switchstream.ui.util.rememberHaptic()
 
     Button(
-        onClick = onClick,
+        onClick = { haptic(); onClick() },
         enabled = enabled,
-        modifier = modifier.onFocusChanged { isFocused = it.isFocused },
+        modifier = modifier
+            .clickable { haptic(); onClick() }
+            .onFocusChanged { isFocused = it.isFocused },
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
         colors = if (isPrimary) {
             ButtonDefaults.colors(
@@ -72,7 +76,8 @@ fun FocusableButton(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
         )
     }
 }

@@ -2,6 +2,7 @@ package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,6 +68,7 @@ fun EpisodeRow(
         modifier = modifier
             .fillMaxWidth()
             .height(130.dp)
+            .clickable { onClick() }
             .onFocusChanged { isFocused = it.isFocused }
             .graphicsLayer {
                 scaleX = scale

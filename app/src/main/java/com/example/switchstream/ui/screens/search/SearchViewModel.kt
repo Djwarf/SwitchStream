@@ -37,7 +37,7 @@ class SearchViewModel(
 
     init {
         queryFlow
-            .debounce(400L)
+            .debounce(250L)
             .distinctUntilChanged()
             .onEach { debouncedQuery ->
                 if (debouncedQuery.length >= 2) {

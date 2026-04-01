@@ -2,6 +2,7 @@ package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -49,14 +50,17 @@ fun EditorialCard(
     progress: Float? = null,
     typeIcon: ImageVector? = null,
     cardWidth: Dp = 240.dp,
-    imageHeight: Dp = 135.dp
+    imageHeight: Dp = 135.dp,
+    badge: String? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val haptic = com.example.switchstream.ui.util.rememberHaptic()
 
     Card(
-        onClick = onClick,
+        onClick = { haptic(); onClick() },
         modifier = modifier
             .width(cardWidth)
+            .clickable { haptic(); onClick() }
             .onFocusChanged { isFocused = it.isFocused },
         shape = CardDefaults.shape(shape = RoundedCornerShape(16.dp)),
         colors = CardDefaults.colors(
@@ -100,6 +104,22 @@ fun EditorialCard(
                             contentDescription = "Content type",
                             tint = TextPrimary,
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                // Badge (top-right) — "NEW" or unplayed count
+                if (badge != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(AccentBlue, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        androidx.tv.material3.Text(
+                            text = badge,
+                            style = androidx.tv.material3.MaterialTheme.typography.labelSmall,
+                            color = PureWhite
                         )
                     }
                 }

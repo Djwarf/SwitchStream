@@ -1,11 +1,13 @@
 package com.example.switchstream
 
 import android.app.PictureInPictureParams
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     var isInPlayer: Boolean = false
     var pipEnabled: Boolean = false
+    var pendingDeepLink: String? = null
 
     fun enterPipIfEnabled(): Boolean {
         if (!isInPlayer || !pipEnabled) return false
@@ -43,10 +46,48 @@ class MainActivity : ComponentActivity() {
         return false
     }
 
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        enterPipIfEnabled()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        pendingDeepLink = parseDeepLink(intent)
+    }
+
+    private fun parseDeepLink(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        if (uri.scheme != "switchstream") return null
+        val pathSegments = uri.pathSegments
+        if (pathSegments.isEmpty()) return null
+
+        return when (uri.host) {
+            "item" -> pathSegments.firstOrNull()?.let { "detail/$it" }
+            "play" -> pathSegments.firstOrNull()?.let { "player/$it/DeepLink" }
+            else -> {
+                // Also handle switchstream://item/id format (host = item)
+                when (pathSegments.firstOrNull()) {
+                    "item" -> pathSegments.getOrNull(1)?.let { "detail/$it" }
+                    "play" -> pathSegments.getOrNull(1)?.let { "player/$it/DeepLink" }
+                    else -> null
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val app = applicationContext as SwitchStreamApp
+        var isReady = false
+
+        // Parse deep link: switchstream://item/{id}, switchstream://play/{id}
+        pendingDeepLink = parseDeepLink(intent)
+
+        splash.setKeepOnScreenCondition { !isReady }
 
         setContent {
             SwitchStreamTheme {
@@ -74,10 +115,14 @@ class MainActivity : ComponentActivity() {
                         } else {
                             startDestination = Screen.Connect.route
                         }
+                        isReady = true
                     }
 
                     if (startDestination != null) {
-                        NavGraph(startDestination = startDestination!!)
+                        NavGraph(
+                            startDestination = startDestination!!,
+                            deepLinkRoute = pendingDeepLink
+                        )
                     } else {
                         LoadingIndicator()
                     }

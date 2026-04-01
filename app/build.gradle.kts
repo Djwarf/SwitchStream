@@ -12,8 +12,8 @@ android {
         applicationId = "com.switchsides.switchstream"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     signingConfigs {
@@ -33,6 +33,9 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
         }
     }
     compileOptions {
@@ -59,6 +62,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.jellyfin.sdk)
     implementation(libs.coil.compose)
@@ -67,6 +71,7 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.session)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.work.runtime)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)

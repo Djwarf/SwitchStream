@@ -28,6 +28,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import com.example.switchstream.ui.components.EmptyState
 import com.example.switchstream.ui.components.ErrorState
 import com.example.switchstream.ui.components.LoadingIndicator
+import com.example.switchstream.ui.theme.LocalDimensions
 import com.example.switchstream.ui.theme.PureBlack
 import com.example.switchstream.ui.theme.TextPrimary
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -37,6 +38,7 @@ fun HistoryScreen(
     viewModel: HistoryViewModel,
     onItemClick: (itemId: String) -> Unit
 ) {
+    val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
     val gridState = rememberLazyGridState()
 
@@ -57,13 +59,14 @@ fun HistoryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
+            .padding(top = dims.topBarClearance)
     ) {
         // Title
         Text(
             text = "Watch History",
             style = MaterialTheme.typography.headlineLarge,
             color = TextPrimary,
-            modifier = Modifier.padding(horizontal = 56.dp, vertical = 24.dp)
+            modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 24.dp)
         )
 
         when {
@@ -77,7 +80,7 @@ fun HistoryScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 260.dp),
                     state = gridState,
-                    contentPadding = PaddingValues(horizontal = 56.dp, vertical = 16.dp),
+                    contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     modifier = Modifier.fillMaxSize()

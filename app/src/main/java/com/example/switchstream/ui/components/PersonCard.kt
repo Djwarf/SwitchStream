@@ -1,6 +1,7 @@
 package com.example.switchstream.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -49,6 +50,7 @@ fun PersonCard(
         onClick = onClick,
         modifier = modifier
             .width(120.dp)
+            .clickable { onClick() }
             .onFocusChanged { isFocused = it.isFocused }
             .graphicsLayer {
                 scaleX = scale

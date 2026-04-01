@@ -35,7 +35,7 @@ class SwitchStreamApp : Application(), ImageLoaderFactory {
                     .maxSizeBytes(250L * 1024 * 1024) // 250 MB
                     .build()
             }
-            .crossfade(true)
+            .crossfade(100)
             .build()
     }
 }

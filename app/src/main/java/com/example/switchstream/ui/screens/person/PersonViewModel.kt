@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
+import com.example.switchstream.util.isNetworkError
 import org.jellyfin.sdk.model.api.BaseItemDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,7 @@ class PersonViewModel(
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = "Failed to load: ${e.message}"
+                        error = if (isNetworkError(e)) "You're offline" else "Failed to load: ${e.message}"
                     )
                 }
             )

@@ -3,6 +3,8 @@ package com.example.switchstream.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,6 +113,7 @@ fun PlaybackSpeedSelector(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
+                            .clickable { onSelect(speed) }
                             .onFocusChanged { isFocused = it.isFocused },
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                         colors = ClickableSurfaceDefaults.colors(

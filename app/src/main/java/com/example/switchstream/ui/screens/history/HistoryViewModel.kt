@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.switchstream.data.repository.ImageRepository
 import com.example.switchstream.data.repository.LibraryRepository
+import com.example.switchstream.util.isNetworkError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +45,7 @@ class HistoryViewModel(
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = "Failed to load watch history: ${e.message}"
+                        error = if (isNetworkError(e)) "You're offline" else "Failed to load watch history: ${e.message}"
                     )
                 }
             )
