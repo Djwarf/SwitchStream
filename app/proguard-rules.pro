@@ -18,11 +18,11 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class com.example.switchstream.**$$serializer { *; }
--keepclassmembers class com.example.switchstream.** {
+-keep,includedescriptorclasses class com.switchsides.switchstream.**$$serializer { *; }
+-keepclassmembers class com.switchsides.switchstream.** {
     *** Companion;
 }
--keepclasseswithmembers class com.example.switchstream.** {
+-keepclasseswithmembers class com.switchsides.switchstream.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

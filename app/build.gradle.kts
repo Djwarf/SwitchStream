@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.switchstream"
+    namespace = "com.switchsides.switchstream"
     compileSdk = 35
 
     defaultConfig {
