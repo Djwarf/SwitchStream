@@ -18,13 +18,17 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class com.switchsides.switchstream.**$$serializer { *; }
--keepclassmembers class com.switchsides.switchstream.** {
+-keep,includedescriptorclasses class com.example.switchstream.**$$serializer { *; }
+-keepclassmembers class com.example.switchstream.** {
     *** Companion;
 }
--keepclasseswithmembers class com.switchsides.switchstream.** {
+-keepclasseswithmembers class com.example.switchstream.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# Keep all @Serializable classes and their serializers
+-keepattributes RuntimeVisibleAnnotations
+-keep @kotlinx.serialization.Serializable class * { *; }
 
 # Ktor (used by Jellyfin SDK)
 -keep class io.ktor.** { *; }
