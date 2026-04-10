@@ -45,5 +45,10 @@
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
+# WorkManager + Room (WorkManager uses Room internally)
+-keep class androidx.work.impl.** { *; }
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase_Impl
+
 # Compose - kept by default but just in case
 -dontwarn androidx.compose.**
