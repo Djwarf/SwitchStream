@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **SwitchStream**
-Last updated: March 30, 2026
+Last updated: April 11, 2026
 
 SwitchStream is developed by Djwar Fettah ("SwitchSides", "we", "us", or "our"). This privacy policy explains how SwitchStream ("the app") handles your information.
 
@@ -22,18 +22,29 @@ This data is stored in Android's encrypted DataStore on your device only. It is 
 
 ## Data Collection
 
-We do not collect any personal data. Specifically:
+We (SwitchSides) do not collect any personal data. No data is sent to us or any third party. Specifically:
 
-- No analytics or usage tracking
+- No analytics or usage tracking by us
 - No advertising identifiers
 - No crash reports sent to external services
 - No location data
 - No contacts, camera, or microphone access
 - No data shared with third parties
 
-## Network Communication
+The only data transmission is between your device and the Jellyfin server you configure, as described below.
 
-The app communicates exclusively with the Jellyfin server address you provide. All network traffic is between your device and your server. We have no visibility into this communication.
+## Data Transmitted to Your Server
+
+When the app communicates with your Jellyfin server, the following data is transmitted:
+
+- **Device identifier**: The Jellyfin SDK generates a persistent device ID that is sent with every API request. Your server uses this to manage active sessions and devices.
+- **Device name**: Your device model name is sent to your server for session identification.
+- **Client name and version**: The app identifies itself as "SwitchStream" to your server.
+- **Authentication credentials**: Your username and password are sent to your server during login. After authentication, a session token is used for subsequent requests.
+- **Playback progress**: The app reports playback position to your server in real-time so you can resume media where you left off.
+- **User ID**: Your Jellyfin user ID is included in API requests to retrieve your libraries, preferences, and media.
+
+All of this data is transmitted exclusively to the Jellyfin server address you provide. None of this data is sent to us, any third party, or any other external service. We have no visibility into this communication.
 
 We recommend using HTTPS to connect to your Jellyfin server to ensure your data is encrypted in transit.
 

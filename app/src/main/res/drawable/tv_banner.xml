@@ -18,36 +18,38 @@
         android:strokeWidth="1.5"
         android:strokeAlpha="0.5" />
 
-    <!-- White chevrons (top-left region) -->
+    <!-- White chevron - solid -->
     <path
-        android:pathData="M88.1,20 L174.4,51.6 L88.1,83.3"
-        android:strokeWidth="9.6"
+        android:pathData="M29,55 L75,90 L29,125"
+        android:strokeWidth="9"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
 
+    <!-- White chevron - faded -->
     <path
-        android:pathData="M120.7,20 L207,51.6 L120.7,83.3"
-        android:strokeWidth="9.6"
+        android:pathData="M50,55 L96,90 L50,125"
+        android:strokeWidth="9"
         android:strokeColor="#FFFFFF"
         android:strokeAlpha="0.45"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
 
-    <!-- Burgundy chevrons (bottom-right region) -->
+    <!-- Burgundy chevron - solid -->
     <path
-        android:pathData="M232,96.7 L145.6,128.4 L232,160"
-        android:strokeWidth="9.6"
+        android:pathData="M113,55 L67,90 L113,125"
+        android:strokeWidth="9"
         android:strokeColor="#8B1A1A"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
 
+    <!-- Burgundy chevron - faded -->
     <path
-        android:pathData="M199.3,96.7 L113,128.4 L199.3,160"
-        android:strokeWidth="9.6"
+        android:pathData="M92,55 L46,90 L92,125"
+        android:strokeWidth="9"
         android:strokeColor="#8B1A1A"
         android:strokeAlpha="0.45"
         android:strokeLineCap="round"
