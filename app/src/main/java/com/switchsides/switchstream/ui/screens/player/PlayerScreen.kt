@@ -96,6 +96,19 @@ fun PlayerScreen(
         }
     }
 
+    // Keep the screen awake only while actually playing; clear the flag on pause or exit.
+    DisposableEffect(uiState.isPlaying) {
+        val window = (view.context as? android.app.Activity)?.window
+        if (uiState.isPlaying) {
+            window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     // Auto-hide seek indicator
     LaunchedEffect(seekIndicator) {
         if (seekIndicator != null) {

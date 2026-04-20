@@ -231,6 +231,9 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     },
                     onGenreClick = { genre ->
                         navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
+                    },
+                    onSeriesClick = { seriesId ->
+                        navController.navigate(Screen.Detail.createRoute(seriesId))
                     }
                 )
             }

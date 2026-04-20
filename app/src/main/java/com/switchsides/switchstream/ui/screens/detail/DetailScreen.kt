@@ -75,7 +75,8 @@ fun DetailScreen(
     viewModel: DetailViewModel,
     onPlayClick: (itemId: String) -> Unit,
     onPersonClick: (personId: String, personName: String) -> Unit = { _, _ -> },
-    onGenreClick: (genre: String) -> Unit = {}
+    onGenreClick: (genre: String) -> Unit = {},
+    onSeriesClick: (seriesId: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -111,7 +112,8 @@ fun DetailScreen(
                 onBulkDownloadClick = { showBulkDownloadChooser = true },
                 onDownloadEpisode = viewModel::downloadEpisode,
                 onPersonClick = onPersonClick,
-                onGenreClick = onGenreClick
+                onGenreClick = onGenreClick,
+                onSeriesClick = onSeriesClick
             )
         }
 
@@ -236,7 +238,8 @@ private fun DetailContent(
     onBulkDownloadClick: () -> Unit,
     onDownloadEpisode: (org.jellyfin.sdk.model.api.BaseItemDto) -> Unit,
     onPersonClick: (personId: String, personName: String) -> Unit,
-    onGenreClick: (genre: String) -> Unit
+    onGenreClick: (genre: String) -> Unit,
+    onSeriesClick: (String) -> Unit
 ) {
     val dims = LocalDimensions.current
     val item = uiState.item ?: return
@@ -266,12 +269,40 @@ private fun DetailContent(
 
                 // Info column
                 Column(modifier = Modifier.weight(1f)) {
+                    // Clickable parent-series link (episodes only)
+                    if (uiState.isEpisode && !uiState.parentSeriesId.isNullOrEmpty() && !uiState.parentSeriesName.isNullOrEmpty()) {
+                        Text(
+                            text = uiState.parentSeriesName,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = AccentBlue,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onSeriesClick(uiState.parentSeriesId) }
+                                .padding(vertical = 2.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
                     Text(
                         text = item.name ?: "",
                         style = MaterialTheme.typography.headlineMedium,
                         color = TextPrimary,
                         maxLines = 2
                     )
+
+                    // Episode S/E label
+                    if (uiState.isEpisode) {
+                        val s = item.parentIndexNumber
+                        val e = item.indexNumber
+                        if (s != null && e != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "S${s} \u00B7 E${e}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 

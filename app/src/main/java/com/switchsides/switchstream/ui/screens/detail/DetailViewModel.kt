@@ -19,6 +19,9 @@ data class DetailUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val isSeries: Boolean = false,
+    val isEpisode: Boolean = false,
+    val parentSeriesId: String? = null,
+    val parentSeriesName: String? = null,
     val seasons: List<BaseItemDto> = emptyList(),
     val episodes: List<BaseItemDto> = emptyList(),
     val selectedSeasonIndex: Int = 0,
@@ -187,10 +190,14 @@ class DetailViewModel(
             libraryRepo.getItemDetail(itemId).fold(
                 onSuccess = { item ->
                     val isSeries = item.type == BaseItemKind.SERIES
+                    val isEpisode = item.type == BaseItemKind.EPISODE
                     _uiState.value = _uiState.value.copy(
                         item = item,
                         isLoading = false,
                         isSeries = isSeries,
+                        isEpisode = isEpisode,
+                        parentSeriesId = item.seriesId?.toString(),
+                        parentSeriesName = item.seriesName,
                         isFavorite = item.userData?.isFavorite == true,
                         isPlayed = item.userData?.played == true
                     )
