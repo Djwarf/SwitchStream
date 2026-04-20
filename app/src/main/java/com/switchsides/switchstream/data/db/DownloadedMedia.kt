@@ -14,5 +14,7 @@ data class DownloadedMedia(
     val downloadedBytes: Long = 0,
     val mediaType: String = "",
     val seriesName: String? = null,
-    val dateAdded: Long = System.currentTimeMillis()
+    val dateAdded: Long = System.currentTimeMillis(),
+    val bytesPerSec: Long = 0,
+    val updatedAtMs: Long = 0
 )

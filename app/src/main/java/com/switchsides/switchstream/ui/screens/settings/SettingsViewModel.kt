@@ -116,4 +116,8 @@ class SettingsViewModel(
         viewModelScope.launch { settingsManager.updateOfflineMode(enabled) }
         appContainer.networkMonitor.setOfflineMode(enabled)
     }
+
+    fun updateDownloadLocationTreeUri(uri: String) {
+        viewModelScope.launch { settingsManager.updateDownloadLocationTreeUri(uri) }
+    }
 }

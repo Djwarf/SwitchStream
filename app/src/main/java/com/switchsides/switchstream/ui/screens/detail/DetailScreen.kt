@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -76,6 +78,16 @@ fun DetailScreen(
     onGenreClick: (genre: String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    var showBulkDownloadChooser by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.queuedToastEpisodes) {
+        uiState.queuedToastEpisodes?.let { n ->
+            val msg = if (n > 0) "Queued $n episode${if (n == 1) "" else "s"}" else "Nothing new to download"
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearQueuedToast()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -96,11 +108,71 @@ fun DetailScreen(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onTogglePlayed = viewModel::togglePlayed,
                 onToggleDownload = viewModel::toggleDownload,
-                onDownloadSeason = viewModel::downloadSeason,
+                onBulkDownloadClick = { showBulkDownloadChooser = true },
                 onDownloadEpisode = viewModel::downloadEpisode,
                 onPersonClick = onPersonClick,
                 onGenreClick = onGenreClick
             )
+        }
+
+        // Bulk download chooser (series only)
+        if (showBulkDownloadChooser) {
+            val epsInCurrentSeason = uiState.episodes.size
+            val seasonName = uiState.seasons.getOrNull(uiState.selectedSeasonIndex)?.name ?: "This season"
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(com.switchsides.switchstream.ui.theme.OverlayBlack)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { showBulkDownloadChooser = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(GlassSurface)
+                        .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Download",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Choose what to download.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FocusableButton(
+                            text = "Cancel",
+                            onClick = { showBulkDownloadChooser = false },
+                            isPrimary = false
+                        )
+                        FocusableButton(
+                            text = "$seasonName ($epsInCurrentSeason)",
+                            onClick = {
+                                showBulkDownloadChooser = false
+                                viewModel.downloadSeason()
+                            },
+                            isPrimary = false
+                        )
+                        FocusableButton(
+                            text = "Entire series",
+                            onClick = {
+                                showBulkDownloadChooser = false
+                                viewModel.downloadSeries()
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         // Delete download confirmation dialog
@@ -161,7 +233,7 @@ private fun DetailContent(
     onToggleFavorite: () -> Unit,
     onTogglePlayed: () -> Unit,
     onToggleDownload: () -> Unit,
-    onDownloadSeason: () -> Unit,
+    onBulkDownloadClick: () -> Unit,
     onDownloadEpisode: (org.jellyfin.sdk.model.api.BaseItemDto) -> Unit,
     onPersonClick: (personId: String, personName: String) -> Unit,
     onGenreClick: (genre: String) -> Unit
@@ -352,7 +424,7 @@ private fun DetailContent(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(GlassSurface)
                                 .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
-                                .clickable { if (uiState.isSeries) onDownloadSeason() else onToggleDownload() },
+                                .clickable { if (uiState.isSeries) onBulkDownloadClick() else onToggleDownload() },
                             contentAlignment = Alignment.Center
                         ) {
                             // Circular progress behind icon when downloading
@@ -522,7 +594,7 @@ private fun DetailContent(
             itemsIndexed(uiState.episodes, key = { _, ep -> ep.id }) { _, episode ->
                 EpisodeRow(
                     episode = episode,
-                    imageUrl = imageRepo.getPrimaryImageUrl(episode.id),
+                    imageUrl = imageRepo.getEpisodeThumbUrl(episode.id),
                     onClick = { onPlayClick(episode.id.toString()) },
                     modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 4.dp),
                     downloadState = uiState.episodeDownloadStates[episode.id.toString()],

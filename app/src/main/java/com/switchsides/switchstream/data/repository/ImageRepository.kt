@@ -19,4 +19,7 @@ class ImageRepository(private val serverUrl: String) {
     fun getThumbUrl(itemId: UUID, maxWidth: Int = 600): String {
         return "$serverUrl/Items/$itemId/Images/Thumb?maxWidth=$maxWidth&quality=90"
     }
+
+    fun getEpisodeThumbUrl(episodeId: UUID, maxWidth: Int = 720): String =
+        getPrimaryImageUrl(episodeId, maxWidth)
 }

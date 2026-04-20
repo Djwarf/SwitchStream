@@ -112,6 +112,17 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
         response.content.items.orEmpty()
     }
 
+    suspend fun getNextEpisode(seriesId: UUID, currentEpisodeId: UUID): Result<BaseItemDto?> = runCatching {
+        val response = apiClient.tvShowsApi.getEpisodes(
+            seriesId = seriesId,
+            userId = userId,
+            adjacentTo = currentEpisodeId
+        )
+        val items = response.content.items.orEmpty()
+        val currentIdx = items.indexOfFirst { it.id == currentEpisodeId }
+        if (currentIdx >= 0 && currentIdx + 1 < items.size) items[currentIdx + 1] else null
+    }
+
     suspend fun getNextUp(seriesId: UUID? = null, limit: Int = 1): Result<List<BaseItemDto>> = runCatching {
         val response = apiClient.tvShowsApi.getNextUp(
             userId = userId,

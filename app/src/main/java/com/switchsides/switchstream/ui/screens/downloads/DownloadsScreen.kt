@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Error
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -86,7 +85,9 @@ fun DownloadsScreen(
                     DownloadRow(
                         download = download,
                         onClick = { onItemClick(download.itemId) },
-                        onDelete = { viewModel.deleteDownload(download.itemId) }
+                        onDelete = { viewModel.deleteDownload(download.itemId) },
+                        onCancel = { viewModel.cancelDownload(download.itemId) },
+                        onRetry = { viewModel.retryDownload(download) }
                     )
                 }
             }
@@ -98,7 +99,9 @@ fun DownloadsScreen(
 private fun DownloadRow(
     download: DownloadedMedia,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -108,7 +111,6 @@ private fun DownloadRow(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Thumbnail
         AsyncImage(
             model = download.thumbnailUrl,
             contentDescription = download.title,
@@ -120,7 +122,6 @@ private fun DownloadRow(
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // Info
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = download.title,
@@ -136,20 +137,7 @@ private fun DownloadRow(
                 )
             }
             Text(
-                text = when (download.downloadState) {
-                    DownloadState.QUEUED -> "Waiting..."
-                    DownloadState.DOWNLOADING -> {
-                        if (download.totalBytes > 0) {
-                            val pct = (download.downloadedBytes * 100 / download.totalBytes).toInt()
-                            "Downloading $pct%"
-                        } else "Downloading..."
-                    }
-                    DownloadState.COMPLETE -> {
-                        val mb = download.totalBytes / (1024 * 1024)
-                        "Complete (${mb}MB)"
-                    }
-                    DownloadState.FAILED -> "Failed"
-                },
+                text = statusLine(download),
                 style = MaterialTheme.typography.labelSmall,
                 color = when (download.downloadState) {
                     DownloadState.COMPLETE -> SuccessGreen
@@ -157,7 +145,6 @@ private fun DownloadRow(
                     else -> AccentBlue
                 }
             )
-            // Progress bar for active downloads
             if (download.downloadState == DownloadState.DOWNLOADING && download.totalBytes > 0) {
                 Spacer(modifier = Modifier.height(6.dp))
                 androidx.compose.material3.LinearProgressIndicator(
@@ -182,7 +169,6 @@ private fun DownloadRow(
             }
         }
 
-        // Status icon
         Icon(
             imageVector = when (download.downloadState) {
                 DownloadState.COMPLETE -> Icons.Outlined.CheckCircle
@@ -200,11 +186,61 @@ private fun DownloadRow(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Delete button
-        FocusableButton(
-            text = "Delete",
-            onClick = onDelete,
-            isPrimary = false
-        )
+        when (download.downloadState) {
+            DownloadState.DOWNLOADING, DownloadState.QUEUED ->
+                FocusableButton(text = "Cancel", onClick = onCancel, isPrimary = false)
+            DownloadState.FAILED -> {
+                FocusableButton(text = "Retry", onClick = onRetry, isPrimary = true)
+                Spacer(modifier = Modifier.width(8.dp))
+                FocusableButton(text = "Delete", onClick = onDelete, isPrimary = false)
+            }
+            DownloadState.COMPLETE ->
+                FocusableButton(text = "Delete", onClick = onDelete, isPrimary = false)
+        }
+    }
+}
+
+private fun statusLine(d: DownloadedMedia): String = when (d.downloadState) {
+    DownloadState.QUEUED -> "Waiting\u2026"
+    DownloadState.DOWNLOADING -> {
+        val pct = if (d.totalBytes > 0) (d.downloadedBytes * 100 / d.totalBytes).toInt() else 0
+        val speed = formatSpeed(d.bytesPerSec)
+        val eta = formatEta(d.totalBytes, d.downloadedBytes, d.bytesPerSec)
+        val size = if (d.totalBytes > 0) "${formatBytes(d.downloadedBytes)} / ${formatBytes(d.totalBytes)}"
+        else formatBytes(d.downloadedBytes)
+        buildString {
+            append("$pct%  \u00b7  $size  \u00b7  $speed")
+            if (eta.isNotEmpty()) append("  \u00b7  ETA $eta")
+        }
+    }
+    DownloadState.COMPLETE -> "Complete \u00b7 ${formatBytes(d.totalBytes)}"
+    DownloadState.FAILED -> "Failed"
+}
+
+private fun formatBytes(b: Long): String {
+    if (b <= 0) return "0 B"
+    if (b < 1024) return "$b B"
+    if (b < 1024 * 1024) return "${b / 1024} KB"
+    if (b < 1024L * 1024 * 1024) return "%.1f MB".format(b / 1_048_576.0)
+    return "%.2f GB".format(b / 1_073_741_824.0)
+}
+
+private fun formatSpeed(bps: Long): String {
+    if (bps <= 0) return "\u2014"
+    if (bps < 1024 * 1024) return "${bps / 1024} KB/s"
+    return "%.1f MB/s".format(bps / 1_048_576.0)
+}
+
+private fun formatEta(total: Long, done: Long, bps: Long): String {
+    if (total <= 0 || bps <= 0) return ""
+    val remainingSec = ((total - done).coerceAtLeast(0L)) / bps
+    if (remainingSec <= 0) return ""
+    val hours = remainingSec / 3600
+    val minutes = (remainingSec % 3600) / 60
+    val seconds = remainingSec % 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m ${seconds}s"
+        else -> "${seconds}s"
     }
 }

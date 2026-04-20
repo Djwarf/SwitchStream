@@ -2,6 +2,8 @@ package com.switchsides.switchstream.ui.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.switchsides.switchstream.data.cache.HomeCache
+import com.switchsides.switchstream.data.cache.HomeCacheData
 import com.switchsides.switchstream.data.repository.ImageRepository
 import com.switchsides.switchstream.data.repository.LibraryRepository
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -29,6 +31,7 @@ data class HomeUiState(
     val latestByLibrary: Map<UUID, List<BaseItemDto>> = emptyMap(),
     val recommendations: List<RecommendationRow> = emptyList(),
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val isOffline: Boolean = false,
     val offlineItems: List<com.switchsides.switchstream.data.db.DownloadedMedia> = emptyList()
@@ -39,6 +42,7 @@ class HomeViewModel(
     val imageRepo: ImageRepository,
     private val downloadRepo: com.switchsides.switchstream.data.repository.DownloadRepository? = null,
     private val settingsManager: com.switchsides.switchstream.data.SettingsManager? = null,
+    private val homeCache: HomeCache? = null,
     private val isTV: Boolean = false
 ) : ViewModel() {
 
@@ -46,7 +50,25 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        checkOfflineModeAndLoad()
+        viewModelScope.launch {
+            val cached = homeCache?.load()
+            if (cached != null && cached.libraries.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    libraries = cached.libraries,
+                    continueWatching = cached.continueWatching,
+                    nextUp = cached.nextUp,
+                    featuredItems = cached.featuredItems,
+                    recentlyAdded = cached.recentlyAdded,
+                    favorites = cached.favorites,
+                    latestByLibrary = cached.latestByLibrary
+                        .mapNotNull { (k, v) -> runCatching { UUID.fromString(k) to v }.getOrNull() }
+                        .toMap(),
+                    isLoading = false,
+                    isRefreshing = true
+                )
+            }
+            checkOfflineModeAndLoad()
+        }
     }
 
     private fun checkOfflineModeAndLoad() {
@@ -64,9 +86,23 @@ class HomeViewModel(
         }
     }
 
+    private fun hasContent(): Boolean {
+        val s = _uiState.value
+        return s.libraries.isNotEmpty() ||
+            s.featuredItems.isNotEmpty() ||
+            s.recentlyAdded.isNotEmpty() ||
+            s.continueWatching.isNotEmpty() ||
+            s.latestByLibrary.values.any { it.isNotEmpty() }
+    }
+
     private fun loadHomeData() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            val hadContent = hasContent()
+            _uiState.value = _uiState.value.copy(
+                isLoading = !hadContent,
+                isRefreshing = hadContent,
+                error = null
+            )
 
             libraryRepo.getLibraries().fold(
                 onSuccess = { libs ->
@@ -101,7 +137,22 @@ class HomeViewModel(
                         recentlyAdded = recentlyAdded,
                         favorites = favorites,
                         latestByLibrary = latestMap,
-                        isLoading = false
+                        isLoading = false,
+                        isRefreshing = false
+                    )
+
+                    // Persist fresh data for next cold start
+                    homeCache?.save(
+                        HomeCacheData(
+                            libraries = libs,
+                            continueWatching = continueWatching,
+                            nextUp = nextUp,
+                            featuredItems = featured,
+                            recentlyAdded = recentlyAdded,
+                            favorites = favorites,
+                            latestByLibrary = latestMap.mapKeys { it.key.toString() },
+                            savedAtEpochMs = System.currentTimeMillis()
+                        )
                     )
 
                     // Load "Because you watched" recommendations in background
@@ -112,11 +163,18 @@ class HomeViewModel(
                         // Mobile/tablet: offline fallback — show downloaded content
                         loadOfflineContent()
                     }
-                    if (isTV || _uiState.value.offlineItems.isEmpty()) {
+                    val stillEmpty = !hasContent() && _uiState.value.offlineItems.isEmpty()
+                    if (isTV || stillEmpty) {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = if (com.switchsides.switchstream.util.isNetworkError(e)) "You're offline" else "Failed to load: ${e.message}"
+                            isRefreshing = false,
+                            error = if (hadContent) null
+                            else if (com.switchsides.switchstream.util.isNetworkError(e)) "You're offline"
+                            else "Failed to load: ${e.message}"
                         )
+                    } else {
+                        // Silent failure — keep showing cached data
+                        _uiState.value = _uiState.value.copy(isRefreshing = false)
                     }
                 }
             )

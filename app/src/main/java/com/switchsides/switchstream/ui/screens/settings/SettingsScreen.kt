@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.PictureInPicture
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,11 +36,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
@@ -65,9 +72,26 @@ fun SettingsScreen(
     val dims = LocalDimensions.current
     val uiState by viewModel.uiState.collectAsState()
     val playback = uiState.playbackSettings
+    val context = LocalContext.current
 
     val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     val seekOptions = listOf(5, 10, 15, 30)
+
+    val downloadFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                viewModel.updateDownloadLocationTreeUri(uri.toString())
+            } catch (_: SecurityException) {
+                // Permission grant was denied by the system; silently ignore.
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -237,6 +261,42 @@ fun SettingsScreen(
                     }
                 )
             }
+
+            item {
+                val display = if (playback.downloadLocationTreeUri.isBlank()) {
+                    "App default"
+                } else {
+                    decodeTreeUriLabel(playback.downloadLocationTreeUri)
+                }
+                SettingsTile(
+                    icon = Icons.Outlined.Folder,
+                    label = "Download Location",
+                    value = display,
+                    valueColor = if (playback.downloadLocationTreeUri.isBlank()) TextSecondary else AccentBlue,
+                    onClick = {
+                        downloadFolderPicker.launch(null)
+                    }
+                )
+            }
+
+            if (playback.downloadLocationTreeUri.isNotBlank()) {
+                item {
+                    SettingsTile(
+                        icon = Icons.Outlined.RestartAlt,
+                        label = "Reset Download Location",
+                        value = "",
+                        onClick = {
+                            try {
+                                context.contentResolver.releasePersistableUriPermission(
+                                    Uri.parse(playback.downloadLocationTreeUri),
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                )
+                            } catch (_: SecurityException) { }
+                            viewModel.updateDownloadLocationTreeUri("")
+                        }
+                    )
+                }
+            }
         }
 
         // Server section
@@ -344,5 +404,21 @@ private fun SettingsTile(
             style = MaterialTheme.typography.bodyMedium,
             color = if (isFocused) PureWhite else valueColor
         )
+    }
+}
+
+private fun decodeTreeUriLabel(uriString: String): String {
+    return try {
+        val uri = Uri.parse(uriString)
+        val last = uri.lastPathSegment ?: return uriString
+        val decoded = Uri.decode(last)
+        val stripped = when {
+            decoded.startsWith("primary:") -> decoded.removePrefix("primary:").ifBlank { "Internal" }
+            decoded.contains(":") -> decoded.substringAfter(":")
+            else -> decoded
+        }
+        if (stripped.isBlank()) "Internal" else stripped
+    } catch (_: Exception) {
+        uriString
     }
 }

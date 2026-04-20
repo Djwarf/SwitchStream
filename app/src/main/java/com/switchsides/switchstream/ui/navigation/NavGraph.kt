@@ -123,6 +123,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     container.createImageRepository(),
                     container.downloadRepository,
                     container.settingsManager,
+                    container.homeCache,
                     isTV = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
                 )
             }
@@ -341,7 +342,9 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         ) {
             val vm = viewModel {
                 com.switchsides.switchstream.ui.screens.downloads.DownloadsViewModel(
-                    container.downloadRepository
+                    container.downloadRepository,
+                    container.serverUrl,
+                    container.accessToken
                 )
             }
             DrawerWrappedScreen(
@@ -530,7 +533,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     playbackRepo = container.createPlaybackRepository(),
                     libraryRepo = container.createLibraryRepository(),
                     settingsManager = container.settingsManager,
-                    itemId = UUID.fromString(itemId),
+                    initialItemId = UUID.fromString(itemId),
                     seriesId = seriesIdStr?.let { UUID.fromString(it) },
                     title = title
                 )
@@ -549,17 +552,6 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                 activity?.pipEnabled = pipSetting.pictureInPictureEnabled
             }
 
-            vm.onPlayNextEpisode = { nextItemId ->
-                navController.navigate(
-                    Screen.Player.createRoute(
-                        nextItemId.toString(),
-                        Uri.encode(vm.uiState.value.nextEpisode?.name ?: ""),
-                        seriesIdStr ?: ""
-                    )
-                ) {
-                    popUpTo(Screen.Player.route) { inclusive = true }
-                }
-            }
             PlayerScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() }

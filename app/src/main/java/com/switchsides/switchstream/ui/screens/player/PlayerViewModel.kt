@@ -57,10 +57,12 @@ class PlayerViewModel(
     private val playbackRepo: PlaybackRepository,
     private val libraryRepo: LibraryRepository,
     private val settingsManager: SettingsManager,
-    private val itemId: UUID,
+    initialItemId: UUID,
     private val seriesId: UUID? = null,
     title: String
 ) : ViewModel() {
+
+    private var currentItemId: UUID = initialItemId
 
     private val _uiState = MutableStateFlow(PlayerUiState(title = title))
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -86,16 +88,33 @@ class PlayerViewModel(
     private var introTimestamps: IntroTimestamps? = null
     private var introSkipped: Boolean = false
     private var creditsSkipped: Boolean = false
+    private var nextEpisodeTriggered: Boolean = false
     private var controlsHideJob: kotlinx.coroutines.Job? = null
 
-    var onPlayNextEpisode: ((UUID) -> Unit)? = null
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(state: Int) {
+            _uiState.value = _uiState.value.copy(
+                isPlaying = player.isPlaying,
+                duration = player.duration.coerceAtLeast(0)
+            )
+            if (state == Player.STATE_ENDED
+                && autoPlayNext
+                && !upNextDismissed
+                && _uiState.value.nextEpisode != null
+            ) {
+                playNextEpisode()
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
+        }
+    }
 
     init {
         loadSettings()
-        setupPlayer()
-        loadMediaTracks()
-        loadNextEpisode()
-        loadIntroTimestamps()
+        player.addListener(playerListener)
+        loadCurrentItem()
         startPositionTracking()
         restartHideTimer()
     }
@@ -114,19 +133,18 @@ class PlayerViewModel(
         }
     }
 
-    private fun setupPlayer() {
-        val streamUrl = playbackRepo.getStreamUrl(itemId)
+    private fun loadCurrentItem() {
+        val streamUrl = playbackRepo.getStreamUrl(currentItemId)
         val mediaItem = MediaItem.fromUri(streamUrl)
         player.setMediaItem(mediaItem)
         player.prepare()
 
         // Check for resume position — always start playback, show prompt as overlay
         viewModelScope.launch {
-            libraryRepo.getItemDetail(itemId).onSuccess { item ->
+            libraryRepo.getItemDetail(currentItemId).onSuccess { item ->
                 val positionTicks = item.userData?.playbackPositionTicks ?: 0
                 val durationTicks = item.runTimeTicks ?: 0
                 val positionMs = positionTicks / 10_000
-                // Show prompt if > 30s watched and < 90% complete
                 if (positionMs > 30_000 && durationTicks > 0 && positionTicks < durationTicks * 9 / 10) {
                     player.seekTo(positionMs)
                     player.pause()
@@ -141,32 +159,22 @@ class PlayerViewModel(
                     player.play()
                 }
             } ?: run {
-                // If detail fetch fails, just play from start
                 player.play()
             }
         }
 
-        player.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                _uiState.value = _uiState.value.copy(
-                    isPlaying = player.isPlaying,
-                    duration = player.duration.coerceAtLeast(0)
-                )
-            }
-
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
-            }
-        })
-
         viewModelScope.launch {
-            playbackRepo.reportPlaybackStart(itemId)
+            playbackRepo.reportPlaybackStart(currentItemId)
         }
+
+        loadMediaTracks()
+        loadIntroTimestamps()
+        loadNextEpisode()
     }
 
     private fun loadMediaTracks() {
         viewModelScope.launch {
-            playbackRepo.getMediaTracks(itemId).onSuccess { tracks ->
+            playbackRepo.getMediaTracks(currentItemId).onSuccess { tracks ->
                 val audioTracks = tracks.filter { it.type == TrackType.AUDIO }
                 val subtitleTracks = tracks.filter { it.type == TrackType.SUBTITLE }
 
@@ -186,7 +194,7 @@ class PlayerViewModel(
 
     private fun loadIntroTimestamps() {
         viewModelScope.launch {
-            playbackRepo.getIntroTimestamps(itemId).onSuccess { timestamps ->
+            playbackRepo.getIntroTimestamps(currentItemId).onSuccess { timestamps ->
                 introTimestamps = timestamps
             }
         }
@@ -214,19 +222,18 @@ class PlayerViewModel(
     fun skipCredits() {
         creditsSkipped = true
         _uiState.value = _uiState.value.copy(showSkipCredits = false)
-        // If there's a next episode, play it; otherwise just dismiss
-        if (_uiState.value.nextEpisode != null) {
+        if (autoPlayNext && !upNextDismissed && _uiState.value.nextEpisode != null) {
             playNextEpisode()
         }
     }
 
     private fun loadNextEpisode() {
-        if (seriesId == null) return
         viewModelScope.launch {
-            libraryRepo.getNextUp(seriesId).onSuccess { nextUpList ->
-                val nextEp = nextUpList.firstOrNull()
-                // Only set as next if it's a different episode than the current one
-                if (nextEp != null && nextEp.id != itemId) {
+            val resolvedSeriesId = seriesId ?: run {
+                libraryRepo.getItemDetail(currentItemId).getOrNull()?.seriesId ?: return@launch
+            }
+            libraryRepo.getNextEpisode(resolvedSeriesId, currentItemId).onSuccess { nextEp ->
+                if (nextEp != null) {
                     _uiState.value = _uiState.value.copy(nextEpisode = nextEp)
                 }
             }
@@ -279,7 +286,7 @@ class PlayerViewModel(
                 // Report progress every 10 seconds
                 if (currentPos % 10000 < 1000) {
                     playbackRepo.reportPlaybackProgress(
-                        itemId = itemId,
+                        itemId = currentItemId,
                         positionTicks = currentPos * 10000,
                         isPaused = !player.isPlaying
                     )
@@ -426,9 +433,44 @@ class PlayerViewModel(
     }
 
     fun playNextEpisode() {
+        if (nextEpisodeTriggered) return
         val nextEp = _uiState.value.nextEpisode ?: return
-        stopPlayback()
-        onPlayNextEpisode?.invoke(nextEp.id)
+        nextEpisodeTriggered = true
+
+        viewModelScope.launch {
+            playbackRepo.reportPlaybackStopped(
+                itemId = currentItemId,
+                positionTicks = player.currentPosition * 10000
+            )
+        }
+
+        currentItemId = nextEp.id
+        creditsSkipped = false
+        introSkipped = false
+        upNextDismissed = false
+        introTimestamps = null
+        nextEpisodeTriggered = false
+
+        _uiState.value = _uiState.value.copy(
+            title = nextEp.name ?: "",
+            currentPosition = 0L,
+            duration = 0L,
+            nextEpisode = null,
+            showUpNext = false,
+            upNextCountdown = 30,
+            showSkipIntro = false,
+            showSkipCredits = false,
+            showResumePrompt = false,
+            resumePositionMs = 0L,
+            audioTracks = emptyList(),
+            subtitleTracks = emptyList(),
+            selectedAudioIndex = -1,
+            selectedSubtitleIndex = -1
+        )
+
+        player.stop()
+        player.clearMediaItems()
+        loadCurrentItem()
     }
 
     fun cancelUpNext() {
@@ -439,7 +481,7 @@ class PlayerViewModel(
     fun stopPlayback() {
         viewModelScope.launch {
             playbackRepo.reportPlaybackStopped(
-                itemId = itemId,
+                itemId = currentItemId,
                 positionTicks = player.currentPosition * 10000
             )
         }

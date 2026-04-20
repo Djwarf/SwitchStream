@@ -109,7 +109,9 @@ private data class SerializableDownload(
     val downloadedBytes: Long = 0,
     val mediaType: String = "",
     val seriesName: String? = null,
-    val dateAdded: Long = 0
+    val dateAdded: Long = 0,
+    val bytesPerSec: Long = 0,
+    val updatedAtMs: Long = 0
 ) {
     fun toEntity() = DownloadedMedia(
         itemId = itemId,
@@ -121,7 +123,9 @@ private data class SerializableDownload(
         downloadedBytes = downloadedBytes,
         mediaType = mediaType,
         seriesName = seriesName,
-        dateAdded = dateAdded
+        dateAdded = dateAdded,
+        bytesPerSec = bytesPerSec,
+        updatedAtMs = updatedAtMs
     )
 }
 
@@ -135,5 +139,7 @@ private fun DownloadedMedia.toSerializable() = SerializableDownload(
     downloadedBytes = downloadedBytes,
     mediaType = mediaType,
     seriesName = seriesName,
-    dateAdded = dateAdded
+    dateAdded = dateAdded,
+    bytesPerSec = bytesPerSec,
+    updatedAtMs = updatedAtMs
 )

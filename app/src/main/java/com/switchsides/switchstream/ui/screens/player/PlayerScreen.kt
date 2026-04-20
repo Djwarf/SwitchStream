@@ -113,6 +113,7 @@ fun PlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(androidx.compose.ui.graphics.Color.Black)
             .then(
                 if (!dims.isTV && !uiState.showResumePrompt) {
                     // Mobile: double-tap sides to seek, single tap to toggle controls

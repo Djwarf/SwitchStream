@@ -8,6 +8,7 @@ import com.switchsides.switchstream.data.repository.AuthRepository
 import com.switchsides.switchstream.data.repository.ImageRepository
 import com.switchsides.switchstream.data.repository.LibraryRepository
 import com.switchsides.switchstream.data.NetworkMonitor
+import com.switchsides.switchstream.data.cache.HomeCache
 import com.switchsides.switchstream.data.db.AppDatabase
 import com.switchsides.switchstream.data.repository.DownloadRepository
 import com.switchsides.switchstream.data.repository.PlaybackRepository
@@ -21,7 +22,8 @@ class AppContainer(private val context: Context) {
     val settingsManager = SettingsManager(context)
     val database = AppDatabase.getInstance(context)
     val networkMonitor = NetworkMonitor(context)
-    val downloadRepository = DownloadRepository(context, database)
+    val downloadRepository = DownloadRepository(context, database, settingsManager)
+    val homeCache = HomeCache(context)
 
     var apiClient: ApiClient? = null
         private set

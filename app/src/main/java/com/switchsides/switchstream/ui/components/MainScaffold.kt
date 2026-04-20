@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
@@ -403,6 +404,7 @@ private fun MobileTopNavBar(
         navItems.add(NavItem(route, lib.name ?: "Library", icon))
     }
     navItems.add(NavItem("search", "Search", Icons.Outlined.Search))
+    navItems.add(NavItem(Screen.Downloads.route, "Downloads", Icons.Outlined.CloudDownload))
     navItems.add(NavItem(Screen.Settings.route, "Settings", Icons.Outlined.Settings))
 
     Row(

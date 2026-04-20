@@ -29,7 +29,8 @@ data class DetailUiState(
     val downloadState: com.switchsides.switchstream.data.db.DownloadState? = null,
     val downloadProgress: Float = 0f,
     val showDeleteConfirm: Boolean = false,
-    val episodeDownloadStates: Map<String, com.switchsides.switchstream.data.db.DownloadState> = emptyMap()
+    val episodeDownloadStates: Map<String, com.switchsides.switchstream.data.db.DownloadState> = emptyMap(),
+    val queuedToastEpisodes: Int? = null
 )
 
 class DetailViewModel(
@@ -137,8 +138,36 @@ class DetailViewModel(
     fun downloadSeason() {
         if (downloadRepo == null) return
         val episodes = _uiState.value.episodes
-        // Silent downloads for batch — no per-episode notifications
-        episodes.forEach { episode -> downloadEpisode(episode, silent = true) }
+        val states = _uiState.value.episodeDownloadStates
+        val toQueue = episodes.filter { states[it.id.toString()] == null }
+        toQueue.forEach { downloadEpisode(it, silent = true) }
+        _uiState.value = _uiState.value.copy(queuedToastEpisodes = toQueue.size)
+    }
+
+    fun downloadSeries() {
+        if (downloadRepo == null) return
+        val seriesId = _uiState.value.item?.id ?: return
+        val seasons = _uiState.value.seasons
+        viewModelScope.launch {
+            var queued = 0
+            seasons.forEach { season ->
+                val eps = libraryRepo.getEpisodes(seriesId, season.id).getOrNull() ?: emptyList()
+                eps.forEach { ep ->
+                    val existing = downloadRepo.getDownload(ep.id.toString())
+                    if (existing?.downloadState == com.switchsides.switchstream.data.db.DownloadState.COMPLETE ||
+                        existing?.downloadState == com.switchsides.switchstream.data.db.DownloadState.DOWNLOADING ||
+                        existing?.downloadState == com.switchsides.switchstream.data.db.DownloadState.QUEUED
+                    ) return@forEach
+                    downloadEpisode(ep, silent = true)
+                    queued++
+                }
+            }
+            _uiState.value = _uiState.value.copy(queuedToastEpisodes = queued)
+        }
+    }
+
+    fun clearQueuedToast() {
+        _uiState.value = _uiState.value.copy(queuedToastEpisodes = null)
     }
 
     fun observeEpisodeDownloads() {

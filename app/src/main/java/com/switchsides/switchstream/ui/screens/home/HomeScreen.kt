@@ -16,12 +16,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.switchsides.switchstream.data.repository.ImageRepository
 import com.switchsides.switchstream.ui.components.EditorialCard
 import com.switchsides.switchstream.ui.components.EmptyState
@@ -44,6 +51,22 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val dims = LocalDimensions.current
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val firstResume = remember { arrayOf(true) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (firstResume[0]) {
+                    firstResume[0] = false
+                } else {
+                    viewModel.refresh()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Box(
         modifier = Modifier
@@ -68,7 +91,7 @@ fun HomeScreen(
                     // Mobile/Tablet: pull-to-refresh wrapper
                     val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
                     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-                        isRefreshing = uiState.isLoading,
+                        isRefreshing = uiState.isRefreshing,
                         onRefresh = viewModel::refresh,
                         state = pullState,
                         modifier = Modifier.fillMaxSize()
@@ -89,6 +112,15 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        // Thin refresh bar for TV (mobile uses PullToRefreshBox's built-in indicator).
+        if (dims.isTV && uiState.isRefreshing) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+            )
         }
     }
 }

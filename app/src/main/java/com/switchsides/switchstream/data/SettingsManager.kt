@@ -25,7 +25,8 @@ data class PlaybackSettings(
     val subtitleFontSize: Int = 16,
     val subtitleBackgroundOpacity: Float = 0.5f,
     val lockLandscapeDuringPlayback: Boolean = true,
-    val offlineMode: Boolean = false
+    val offlineMode: Boolean = false,
+    val downloadLocationTreeUri: String = ""
 )
 
 class SettingsManager(private val context: Context) {
@@ -42,6 +43,7 @@ class SettingsManager(private val context: Context) {
         val SUBTITLE_BG_OPACITY = floatPreferencesKey("subtitle_bg_opacity")
         val LOCK_LANDSCAPE = booleanPreferencesKey("lock_landscape")
         val OFFLINE_MODE = booleanPreferencesKey("offline_mode")
+        val DOWNLOAD_LOCATION_TREE_URI = stringPreferencesKey("download_location_tree_uri")
     }
 
     val settings: Flow<PlaybackSettings> = context.settingsDataStore.data.map { prefs ->
@@ -56,7 +58,8 @@ class SettingsManager(private val context: Context) {
             subtitleFontSize = prefs[SUBTITLE_FONT_SIZE] ?: 16,
             subtitleBackgroundOpacity = prefs[SUBTITLE_BG_OPACITY] ?: 0.5f,
             lockLandscapeDuringPlayback = prefs[LOCK_LANDSCAPE] ?: true,
-            offlineMode = prefs[OFFLINE_MODE] ?: false
+            offlineMode = prefs[OFFLINE_MODE] ?: false,
+            downloadLocationTreeUri = prefs[DOWNLOAD_LOCATION_TREE_URI] ?: ""
         )
     }
 
@@ -102,5 +105,9 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updateOfflineMode(enabled: Boolean) {
         context.settingsDataStore.edit { it[OFFLINE_MODE] = enabled }
+    }
+
+    suspend fun updateDownloadLocationTreeUri(uri: String) {
+        context.settingsDataStore.edit { it[DOWNLOAD_LOCATION_TREE_URI] = uri }
     }
 }
