@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.switchsides.switchstream.ui.util.autoFocusOnAppear
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.theme.GlassBorder
@@ -31,7 +32,8 @@ import com.switchsides.switchstream.ui.theme.TextSecondary
 fun ResumeDialog(
     positionMs: Long,
     onResume: () -> Unit,
-    onStartOver: () -> Unit
+    onStartOver: () -> Unit,
+    requestFocusOnAppear: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -70,7 +72,8 @@ fun ResumeDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FocusableButton(
                     text = "Resume",
-                    onClick = onResume
+                    onClick = onResume,
+                    modifier = if (requestFocusOnAppear) Modifier.autoFocusOnAppear() else Modifier
                 )
                 FocusableButton(
                     text = "Start Over",

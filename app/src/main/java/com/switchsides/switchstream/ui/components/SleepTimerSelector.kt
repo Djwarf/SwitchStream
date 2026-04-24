@@ -1,10 +1,8 @@
 package com.switchsides.switchstream.ui.components
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,25 +32,39 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.theme.AccentBlue
+import com.switchsides.switchstream.ui.theme.Divider
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.GlassSurface
 import com.switchsides.switchstream.ui.theme.GlassSurfaceLight
-import com.switchsides.switchstream.ui.theme.Divider
 import com.switchsides.switchstream.ui.theme.OverlayBlack
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.util.autoFocusOnAppear
 
-private val SPEEDS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+sealed class SleepTimerChoice(val label: String) {
+    object Off : SleepTimerChoice("Off")
+    data class Minutes(val value: Int) : SleepTimerChoice("$value minutes")
+    object EndOfEpisode : SleepTimerChoice("End of episode")
+}
+
+private val OPTIONS: List<SleepTimerChoice> = listOf(
+    SleepTimerChoice.Off,
+    SleepTimerChoice.Minutes(15),
+    SleepTimerChoice.Minutes(30),
+    SleepTimerChoice.Minutes(45),
+    SleepTimerChoice.Minutes(60),
+    SleepTimerChoice.EndOfEpisode
+)
 
 @Composable
-fun PlaybackSpeedSelector(
-    currentSpeed: Float,
-    onSelect: (Float) -> Unit,
+fun SleepTimerSelector(
+    activeMinutes: Int?,
+    endOfEpisodeActive: Boolean,
+    onSelect: (SleepTimerChoice) -> Unit,
     onDismiss: () -> Unit
 ) {
     Box(
@@ -70,27 +84,18 @@ fun PlaybackSpeedSelector(
         Column(
             modifier = Modifier
                 .width(500.dp)
-                .background(
-                    color = GlassSurface,
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .border(
-                    width = 1.dp,
-                    color = GlassBorder,
-                    shape = RoundedCornerShape(16.dp)
-                )
+                .background(GlassSurface, RoundedCornerShape(16.dp))
+                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
                 .padding(24.dp)
         ) {
-            // Title
             Text(
-                text = "Playback Speed",
+                text = "Sleep Timer",
                 style = MaterialTheme.typography.headlineSmall,
                 color = TextPrimary
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Separator
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -100,18 +105,24 @@ fun PlaybackSpeedSelector(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Speed options
             LazyColumn {
-                itemsIndexed(SPEEDS) { index, speed ->
-                    val isSelected = speed == currentSpeed
+                itemsIndexed(OPTIONS) { index, option ->
+                    val isSelected = when (option) {
+                        is SleepTimerChoice.Off ->
+                            activeMinutes == null && !endOfEpisodeActive
+                        is SleepTimerChoice.Minutes ->
+                            activeMinutes == option.value && !endOfEpisodeActive
+                        is SleepTimerChoice.EndOfEpisode ->
+                            endOfEpisodeActive
+                    }
                     var isFocused by remember { mutableStateOf(false) }
 
                     Surface(
-                        onClick = { onSelect(speed) },
+                        onClick = { onSelect(option) },
                         modifier = (if (index == 0) Modifier.autoFocusOnAppear() else Modifier)
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
-                            .clickable { onSelect(speed) }
+                            .clickable { onSelect(option) }
                             .onFocusChanged { isFocused = it.isFocused },
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                         colors = ClickableSurfaceDefaults.colors(
@@ -135,7 +146,7 @@ fun PlaybackSpeedSelector(
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
                             Text(
-                                text = "${speed}x",
+                                text = option.label,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (isSelected) AccentBlue else TextPrimary
                             )

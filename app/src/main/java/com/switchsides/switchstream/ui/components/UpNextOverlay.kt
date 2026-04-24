@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.switchsides.switchstream.ui.util.autoFocusOnAppear
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
@@ -39,7 +40,8 @@ fun UpNextOverlay(
     countdown: Int,
     onPlayNow: () -> Unit,
     onCancel: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    requestFocusOnAppear: Boolean = false
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -120,7 +122,8 @@ fun UpNextOverlay(
                 FocusableButton(
                     text = "Play Now",
                     onClick = onPlayNow,
-                    isPrimary = true
+                    isPrimary = true,
+                    modifier = if (requestFocusOnAppear) Modifier.autoFocusOnAppear() else Modifier
                 )
                 FocusableButton(
                     text = "Cancel",

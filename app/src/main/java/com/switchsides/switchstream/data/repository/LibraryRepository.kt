@@ -98,7 +98,8 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
     suspend fun getSeasons(seriesId: UUID): Result<List<BaseItemDto>> = runCatching {
         val response = apiClient.tvShowsApi.getSeasons(
             seriesId = seriesId,
-            userId = userId
+            userId = userId,
+            isMissing = false
         )
         response.content.items.orEmpty()
     }
@@ -107,12 +108,23 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
         val response = apiClient.tvShowsApi.getEpisodes(
             seriesId = seriesId,
             seasonId = seasonId,
-            userId = userId
+            userId = userId,
+            isMissing = false
         )
         response.content.items.orEmpty()
     }
 
-    suspend fun getNextEpisode(seriesId: UUID, currentEpisodeId: UUID): Result<BaseItemDto?> = runCatching {
+    suspend fun getNextEpisode(seriesId: UUID, currentEpisodeId: UUID): Result<BaseItemDto?> =
+        getAdjacentEpisode(seriesId, currentEpisodeId, offset = 1)
+
+    suspend fun getPreviousEpisode(seriesId: UUID, currentEpisodeId: UUID): Result<BaseItemDto?> =
+        getAdjacentEpisode(seriesId, currentEpisodeId, offset = -1)
+
+    private suspend fun getAdjacentEpisode(
+        seriesId: UUID,
+        currentEpisodeId: UUID,
+        offset: Int
+    ): Result<BaseItemDto?> = runCatching {
         val response = apiClient.tvShowsApi.getEpisodes(
             seriesId = seriesId,
             userId = userId,
@@ -120,7 +132,8 @@ class LibraryRepository(private val apiClient: ApiClient, private val userId: UU
         )
         val items = response.content.items.orEmpty()
         val currentIdx = items.indexOfFirst { it.id == currentEpisodeId }
-        if (currentIdx >= 0 && currentIdx + 1 < items.size) items[currentIdx + 1] else null
+        val targetIdx = currentIdx + offset
+        if (currentIdx >= 0 && targetIdx in items.indices) items[targetIdx] else null
     }
 
     suspend fun getNextUp(seriesId: UUID? = null, limit: Int = 1): Result<List<BaseItemDto>> = runCatching {

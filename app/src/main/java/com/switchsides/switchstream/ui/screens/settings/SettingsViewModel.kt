@@ -120,4 +120,16 @@ class SettingsViewModel(
     fun updateDownloadLocationTreeUri(uri: String) {
         viewModelScope.launch { settingsManager.updateDownloadLocationTreeUri(uri) }
     }
+
+    fun updateDownloadsWifiOnly(enabled: Boolean) {
+        viewModelScope.launch { settingsManager.updateDownloadsWifiOnly(enabled) }
+    }
+
+    fun updateStreamingQuality(quality: Int) {
+        viewModelScope.launch { settingsManager.updateStreamingQuality(quality) }
+    }
+
+    fun updateDownloadQuality(quality: Int) {
+        viewModelScope.launch { settingsManager.updateDownloadQuality(quality) }
+    }
 }

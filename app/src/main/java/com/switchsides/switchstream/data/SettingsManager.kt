@@ -26,7 +26,10 @@ data class PlaybackSettings(
     val subtitleBackgroundOpacity: Float = 0.5f,
     val lockLandscapeDuringPlayback: Boolean = true,
     val offlineMode: Boolean = false,
-    val downloadLocationTreeUri: String = ""
+    val downloadLocationTreeUri: String = "",
+    val downloadsWifiOnly: Boolean = false,
+    val streamingQuality: Int = 0,
+    val downloadQuality: Int = 0
 )
 
 class SettingsManager(private val context: Context) {
@@ -44,6 +47,9 @@ class SettingsManager(private val context: Context) {
         val LOCK_LANDSCAPE = booleanPreferencesKey("lock_landscape")
         val OFFLINE_MODE = booleanPreferencesKey("offline_mode")
         val DOWNLOAD_LOCATION_TREE_URI = stringPreferencesKey("download_location_tree_uri")
+        val DOWNLOADS_WIFI_ONLY = booleanPreferencesKey("downloads_wifi_only")
+        val STREAMING_QUALITY = intPreferencesKey("streaming_quality")
+        val DOWNLOAD_QUALITY = intPreferencesKey("download_quality")
     }
 
     val settings: Flow<PlaybackSettings> = context.settingsDataStore.data.map { prefs ->
@@ -59,7 +65,10 @@ class SettingsManager(private val context: Context) {
             subtitleBackgroundOpacity = prefs[SUBTITLE_BG_OPACITY] ?: 0.5f,
             lockLandscapeDuringPlayback = prefs[LOCK_LANDSCAPE] ?: true,
             offlineMode = prefs[OFFLINE_MODE] ?: false,
-            downloadLocationTreeUri = prefs[DOWNLOAD_LOCATION_TREE_URI] ?: ""
+            downloadLocationTreeUri = prefs[DOWNLOAD_LOCATION_TREE_URI] ?: "",
+            downloadsWifiOnly = prefs[DOWNLOADS_WIFI_ONLY] ?: false,
+            streamingQuality = prefs[STREAMING_QUALITY] ?: 0,
+            downloadQuality = prefs[DOWNLOAD_QUALITY] ?: 0
         )
     }
 
@@ -109,5 +118,17 @@ class SettingsManager(private val context: Context) {
 
     suspend fun updateDownloadLocationTreeUri(uri: String) {
         context.settingsDataStore.edit { it[DOWNLOAD_LOCATION_TREE_URI] = uri }
+    }
+
+    suspend fun updateDownloadsWifiOnly(enabled: Boolean) {
+        context.settingsDataStore.edit { it[DOWNLOADS_WIFI_ONLY] = enabled }
+    }
+
+    suspend fun updateStreamingQuality(quality: Int) {
+        context.settingsDataStore.edit { it[STREAMING_QUALITY] = quality }
+    }
+
+    suspend fun updateDownloadQuality(quality: Int) {
+        context.settingsDataStore.edit { it[DOWNLOAD_QUALITY] = quality }
     }
 }

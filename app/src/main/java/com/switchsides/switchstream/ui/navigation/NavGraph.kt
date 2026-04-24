@@ -87,6 +87,11 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     navController.navigate(Screen.Login.createRoute(serverName)) {
                         popUpTo(Screen.Connect.route) { inclusive = true }
                     }
+                },
+                onDemoReady = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
@@ -204,7 +209,8 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     itemId = UUID.fromString(itemId),
                     downloadRepo = container.downloadRepository,
                     serverUrl = container.serverUrl,
-                    accessToken = container.accessToken
+                    accessToken = container.accessToken,
+                    settingsManager = container.settingsManager
                 )
             }
             DrawerWrappedScreen(
@@ -347,7 +353,8 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                 com.switchsides.switchstream.ui.screens.downloads.DownloadsViewModel(
                     container.downloadRepository,
                     container.serverUrl,
-                    container.accessToken
+                    container.accessToken,
+                    container.settingsManager
                 )
             }
             DrawerWrappedScreen(
@@ -538,7 +545,8 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     settingsManager = container.settingsManager,
                     initialItemId = UUID.fromString(itemId),
                     seriesId = seriesIdStr?.let { UUID.fromString(it) },
-                    title = title
+                    title = title,
+                    isTV = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
                 )
             }
             // Enable PiP when in player

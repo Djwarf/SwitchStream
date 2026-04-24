@@ -11,6 +11,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -42,8 +43,29 @@ class DetailViewModel(
     private val itemId: UUID,
     private val downloadRepo: com.switchsides.switchstream.data.repository.DownloadRepository? = null,
     private val serverUrl: String = "",
-    private val accessToken: String = ""
+    private val accessToken: String = "",
+    private val settingsManager: com.switchsides.switchstream.data.SettingsManager? = null
 ) : ViewModel() {
+
+    private suspend fun buildDownloadUrl(itemUuid: UUID): String {
+        val quality = settingsManager?.settings?.first()?.downloadQuality ?: 0
+        if (quality == 0) {
+            return "$serverUrl/Videos/$itemUuid/stream?static=true&mediaSourceId=$itemUuid"
+        }
+        val bitrate = when {
+            quality >= 1080 -> 8_000_000
+            quality >= 720 -> 3_000_000
+            quality >= 480 -> 1_000_000
+            else -> 800_000
+        }
+        return "$serverUrl/Videos/$itemUuid/master.m3u8" +
+            "?mediaSourceId=$itemUuid" +
+            "&maxHeight=$quality" +
+            "&maxStreamingBitrate=$bitrate" +
+            "&videoCodec=h264" +
+            "&audioCodec=aac" +
+            "&api_key=$accessToken"
+    }
 
     private val _uiState = MutableStateFlow(DetailUiState())
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
@@ -83,7 +105,7 @@ class DetailViewModel(
                 downloadRepo.cancelDownload(itemId.toString())
             } else {
                 val item = _uiState.value.item ?: return@launch
-                val streamUrl = "$serverUrl/Videos/$itemId/stream?static=true&mediaSourceId=$itemId"
+                val streamUrl = buildDownloadUrl(itemId)
                 downloadRepo.startDownload(
                     itemId = itemId.toString(),
                     title = item.name ?: "",
@@ -117,7 +139,7 @@ class DetailViewModel(
             if (existing?.downloadState == com.switchsides.switchstream.data.db.DownloadState.COMPLETE ||
                 existing?.downloadState == com.switchsides.switchstream.data.db.DownloadState.DOWNLOADING) return@launch
 
-            val streamUrl = "$serverUrl/Videos/${episode.id}/stream?static=true&mediaSourceId=${episode.id}"
+            val streamUrl = buildDownloadUrl(episode.id)
             val epName = buildString {
                 append(episode.seriesName ?: "")
                 val s = episode.parentIndexNumber
@@ -227,14 +249,27 @@ class DetailViewModel(
             val seasons = seasonsDef.await()
             val nextUp = nextUpDef.await()
 
+            // Default to the user's current season (via Next Up) if present,
+            // else the first non-specials season, else the first season.
+            val defaultIndex = if (seasons.isEmpty()) {
+                0
+            } else {
+                val nextUpSeasonId = nextUp.firstOrNull()?.seasonId
+                val fromNextUp = nextUpSeasonId?.let { id -> seasons.indexOfFirst { it.id == id } } ?: -1
+                when {
+                    fromNextUp >= 0 -> fromNextUp
+                    else -> seasons.indexOfFirst { (it.indexNumber ?: 0) > 0 }.takeIf { it >= 0 } ?: 0
+                }
+            }
+
             _uiState.value = _uiState.value.copy(
                 seasons = seasons,
-                nextUpEpisode = nextUp.firstOrNull()
+                nextUpEpisode = nextUp.firstOrNull(),
+                selectedSeasonIndex = defaultIndex
             )
 
-            // Load first season episodes
             if (seasons.isNotEmpty()) {
-                loadEpisodesForSeason(seriesId, seasons[0].id)
+                loadEpisodesForSeason(seriesId, seasons[defaultIndex].id)
             }
         }
     }

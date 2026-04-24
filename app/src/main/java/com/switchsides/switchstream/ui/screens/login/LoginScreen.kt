@@ -71,11 +71,11 @@ fun LoginScreen(
             Column(
                 modifier = Modifier
                     .widthIn(max = 480.dp)
-                    .padding(24.dp)
+                    .padding(16.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(GlassSurface)
                     .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
-                    .padding(32.dp)
+                    .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Error
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,28 +62,42 @@ fun DownloadsScreen(
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
     ) {
-        if (uiState.downloads.isEmpty()) {
-            EmptyState("No downloads yet")
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = dims.topBarClearance + 16.dp,
-                    start = dims.screenPadding,
-                    end = dims.screenPadding,
-                    bottom = 48.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Text(
-                        text = "Downloads",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = dims.topBarClearance + 16.dp,
+                start = dims.screenPadding,
+                end = dims.screenPadding,
+                bottom = 48.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(
+                    text = "Downloads",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                DestinationBanner(
+                    treeUri = uiState.downloadLocationTreeUri,
+                    wifiOnly = uiState.downloadsWifiOnly
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
+            if (uiState.downloads.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        EmptyState("No downloads yet")
+                    }
+                }
+            } else {
                 items(uiState.downloads, key = { it.itemId }) { download ->
                     DownloadRow(
                         download = download,
@@ -92,6 +109,65 @@ fun DownloadsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DestinationBanner(treeUri: String, wifiOnly: Boolean) {
+    val label = if (treeUri.isBlank()) "App default folder" else decodeTreeUriLabel(treeUri)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(GlassSurface)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Folder,
+            contentDescription = null,
+            tint = AccentBlue,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Saving to: $label",
+            style = MaterialTheme.typography.labelMedium,
+            color = TextPrimary,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+        if (wifiOnly) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Outlined.Wifi,
+                contentDescription = null,
+                tint = AccentBlue,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Wi-Fi only",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentBlue
+            )
+        }
+    }
+}
+
+private fun decodeTreeUriLabel(uriString: String): String {
+    return try {
+        val uri = Uri.parse(uriString)
+        val last = uri.lastPathSegment ?: return uriString
+        val decoded = Uri.decode(last)
+        val stripped = when {
+            decoded.startsWith("primary:") -> decoded.removePrefix("primary:").ifBlank { "Internal" }
+            decoded.contains(":") -> decoded.substringAfter(":")
+            else -> decoded
+        }
+        if (stripped.isBlank()) "Internal" else stripped
+    } catch (_: Exception) {
+        uriString
     }
 }
 

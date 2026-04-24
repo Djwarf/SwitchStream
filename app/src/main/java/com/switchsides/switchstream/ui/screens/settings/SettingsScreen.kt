@@ -28,8 +28,11 @@ import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.PictureInPicture
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.ScreenRotation
+import androidx.compose.material.icons.outlined.Sd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +55,8 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.components.FocusableButton
+import com.switchsides.switchstream.ui.components.QualitySelector
+import com.switchsides.switchstream.ui.components.qualityLabel
 import com.switchsides.switchstream.ui.theme.LocalDimensions
 import com.switchsides.switchstream.ui.theme.AccentBlue
 import com.switchsides.switchstream.ui.theme.GlassBorder
@@ -77,6 +82,9 @@ fun SettingsScreen(
     val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     val seekOptions = listOf(5, 10, 15, 30)
 
+    var showStreamingQualityDialog by remember { mutableStateOf(false) }
+    var showDownloadQualityDialog by remember { mutableStateOf(false) }
+
     val downloadFolderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
@@ -93,6 +101,7 @@ fun SettingsScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -135,6 +144,17 @@ fun SettingsScreen(
                     val next = if (idx >= 0) (idx + 1) % speedOptions.size else 0
                     viewModel.updatePlaybackSpeed(speedOptions[next])
                 }
+            )
+        }
+
+        // Streaming Quality
+        item {
+            SettingsTile(
+                icon = Icons.Outlined.HighQuality,
+                label = "Streaming Quality",
+                value = qualityLabel(playback.streamingQuality),
+                valueColor = if (playback.streamingQuality == 0) TextSecondary else AccentBlue,
+                onClick = { showStreamingQualityDialog = true }
             )
         }
 
@@ -297,6 +317,26 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            item {
+                SettingsTile(
+                    icon = Icons.Outlined.Wifi,
+                    label = "Download on Wi-Fi Only",
+                    value = if (playback.downloadsWifiOnly) "On" else "Off",
+                    valueColor = if (playback.downloadsWifiOnly) AccentBlue else TextSecondary,
+                    onClick = { viewModel.updateDownloadsWifiOnly(!playback.downloadsWifiOnly) }
+                )
+            }
+
+            item {
+                SettingsTile(
+                    icon = Icons.Outlined.Sd,
+                    label = "Download Quality",
+                    value = qualityLabel(playback.downloadQuality),
+                    valueColor = if (playback.downloadQuality == 0) TextSecondary else AccentBlue,
+                    onClick = { showDownloadQualityDialog = true }
+                )
+            }
         }
 
         // Server section
@@ -343,6 +383,31 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+
+    if (showStreamingQualityDialog) {
+        QualitySelector(
+            title = "Streaming Quality",
+            currentQuality = playback.streamingQuality,
+            onSelect = { q ->
+                viewModel.updateStreamingQuality(q)
+                showStreamingQualityDialog = false
+            },
+            onDismiss = { showStreamingQualityDialog = false }
+        )
+    }
+
+    if (showDownloadQualityDialog) {
+        QualitySelector(
+            title = "Download Quality",
+            currentQuality = playback.downloadQuality,
+            onSelect = { q ->
+                viewModel.updateDownloadQuality(q)
+                showDownloadQualityDialog = false
+            },
+            onDismiss = { showDownloadQualityDialog = false }
+        )
+    }
     }
 }
 

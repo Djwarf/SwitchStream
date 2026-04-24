@@ -36,14 +36,17 @@ import com.switchsides.switchstream.ui.components.SwitchStreamTextField
 import com.switchsides.switchstream.ui.theme.ErrorRed
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.GlassSurface
+import com.switchsides.switchstream.ui.theme.LocalDimensions
 import com.switchsides.switchstream.ui.theme.TextPrimary
 
 @Composable
 fun ConnectScreen(
     viewModel: ConnectViewModel,
-    onConnected: () -> Unit
+    onConnected: () -> Unit,
+    onDemoReady: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val dims = LocalDimensions.current
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -111,6 +114,16 @@ fun ConnectScreen(
                     onClick = { viewModel.connect(onConnected) },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (dims.isTV) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FocusableButton(
+                        text = "Try Demo Server",
+                        onClick = { viewModel.connectAsDemo(onDemoReady) },
+                        isPrimary = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }

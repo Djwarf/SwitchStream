@@ -21,8 +21,23 @@ class PlaybackRepository(
     private val userId: UUID
 ) {
 
-    fun getStreamUrl(itemId: UUID): String {
-        return "$serverUrl/Videos/$itemId/stream?static=true&mediaSourceId=$itemId"
+    fun getStreamUrl(itemId: UUID, maxHeight: Int = 0): String {
+        if (maxHeight == 0) {
+            return "$serverUrl/Videos/$itemId/stream?static=true&mediaSourceId=$itemId"
+        }
+        val bitrate = when {
+            maxHeight >= 1080 -> 8_000_000
+            maxHeight >= 720 -> 3_000_000
+            maxHeight >= 480 -> 1_000_000
+            else -> 800_000
+        }
+        return "$serverUrl/Videos/$itemId/master.m3u8" +
+            "?mediaSourceId=$itemId" +
+            "&maxHeight=$maxHeight" +
+            "&maxStreamingBitrate=$bitrate" +
+            "&videoCodec=h264" +
+            "&audioCodec=aac" +
+            "&api_key=${apiClient.accessToken.orEmpty()}"
     }
 
     fun getHlsUrl(itemId: UUID): String {

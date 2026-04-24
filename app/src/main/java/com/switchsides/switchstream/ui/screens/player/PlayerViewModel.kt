@@ -18,6 +18,7 @@ import com.switchsides.switchstream.data.model.TrackType
 import com.switchsides.switchstream.data.repository.IntroTimestamps
 import com.switchsides.switchstream.data.repository.LibraryRepository
 import com.switchsides.switchstream.data.repository.PlaybackRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,12 +43,18 @@ data class PlayerUiState(
     val playbackSpeed: Float = 1.0f,
     val showSpeedDialog: Boolean = false,
     val nextEpisode: BaseItemDto? = null,
+    val previousEpisode: BaseItemDto? = null,
     val showUpNext: Boolean = false,
     val upNextCountdown: Int = 30,
     val showSkipIntro: Boolean = false,
     val showSkipCredits: Boolean = false,
     val showResumePrompt: Boolean = false,
-    val resumePositionMs: Long = 0L
+    val resumePositionMs: Long = 0L,
+    val sleepTimerRemainingMs: Long = 0L,
+    val sleepTimerEndOfEpisode: Boolean = false,
+    val showSleepTimerDialog: Boolean = false,
+    val streamingQuality: Int = 0,
+    val showQualityDialog: Boolean = false
 )
 
 enum class TrackDialogType { AUDIO, SUBTITLE }
@@ -59,7 +66,8 @@ class PlayerViewModel(
     private val settingsManager: SettingsManager,
     initialItemId: UUID,
     private val seriesId: UUID? = null,
-    title: String
+    title: String,
+    private val isTV: Boolean = false
 ) : ViewModel() {
 
     private var currentItemId: UUID = initialItemId
@@ -84,12 +92,15 @@ class PlayerViewModel(
     private var seekForwardMs: Long = 10_000L
     private var seekBackMs: Long = 10_000L
     private var autoPlayNext: Boolean = true
+    private var currentStreamingQuality: Int = 0
     private var upNextDismissed: Boolean = false
     private var introTimestamps: IntroTimestamps? = null
     private var introSkipped: Boolean = false
     private var creditsSkipped: Boolean = false
     private var nextEpisodeTriggered: Boolean = false
+    private var resolvedSeriesId: UUID? = seriesId
     private var controlsHideJob: kotlinx.coroutines.Job? = null
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
@@ -97,12 +108,15 @@ class PlayerViewModel(
                 isPlaying = player.isPlaying,
                 duration = player.duration.coerceAtLeast(0)
             )
-            if (state == Player.STATE_ENDED
-                && autoPlayNext
-                && !upNextDismissed
-                && _uiState.value.nextEpisode != null
-            ) {
-                playNextEpisode()
+            if (state == Player.STATE_ENDED) {
+                if (_uiState.value.sleepTimerEndOfEpisode) {
+                    _uiState.value = _uiState.value.copy(sleepTimerEndOfEpisode = false)
+                    player.pause()
+                    return
+                }
+                if (autoPlayNext && !upNextDismissed && _uiState.value.nextEpisode != null) {
+                    playNextEpisode()
+                }
             }
         }
 
@@ -112,29 +126,31 @@ class PlayerViewModel(
     }
 
     init {
-        loadSettings()
         player.addListener(playerListener)
-        loadCurrentItem()
+        viewModelScope.launch {
+            applySettings()
+            loadCurrentItem()
+        }
         startPositionTracking()
         restartHideTimer()
     }
 
-    private fun loadSettings() {
-        viewModelScope.launch {
-            val settings: PlaybackSettings = settingsManager.settings.first()
-            seekForwardMs = settings.seekForwardSeconds * 1000L
-            seekBackMs = settings.seekBackSeconds * 1000L
-            autoPlayNext = settings.autoPlayNextEpisode
+    private suspend fun applySettings() {
+        val settings: PlaybackSettings = settingsManager.settings.first()
+        seekForwardMs = settings.seekForwardSeconds * 1000L
+        seekBackMs = settings.seekBackSeconds * 1000L
+        autoPlayNext = settings.autoPlayNextEpisode
+        currentStreamingQuality = settings.streamingQuality
+        _uiState.value = _uiState.value.copy(streamingQuality = settings.streamingQuality)
 
-            if (settings.defaultPlaybackSpeed != 1.0f) {
-                player.playbackParameters = PlaybackParameters(settings.defaultPlaybackSpeed)
-                _uiState.value = _uiState.value.copy(playbackSpeed = settings.defaultPlaybackSpeed)
-            }
+        if (settings.defaultPlaybackSpeed != 1.0f) {
+            player.playbackParameters = PlaybackParameters(settings.defaultPlaybackSpeed)
+            _uiState.value = _uiState.value.copy(playbackSpeed = settings.defaultPlaybackSpeed)
         }
     }
 
     private fun loadCurrentItem() {
-        val streamUrl = playbackRepo.getStreamUrl(currentItemId)
+        val streamUrl = playbackRepo.getStreamUrl(currentItemId, currentStreamingQuality)
         val mediaItem = MediaItem.fromUri(streamUrl)
         player.setMediaItem(mediaItem)
         player.prepare()
@@ -169,7 +185,7 @@ class PlayerViewModel(
 
         loadMediaTracks()
         loadIntroTimestamps()
-        loadNextEpisode()
+        loadAdjacentEpisodes()
     }
 
     private fun loadMediaTracks() {
@@ -227,16 +243,21 @@ class PlayerViewModel(
         }
     }
 
-    private fun loadNextEpisode() {
+    private fun loadAdjacentEpisodes() {
         viewModelScope.launch {
-            val resolvedSeriesId = seriesId ?: run {
-                libraryRepo.getItemDetail(currentItemId).getOrNull()?.seriesId ?: return@launch
-            }
-            libraryRepo.getNextEpisode(resolvedSeriesId, currentItemId).onSuccess { nextEp ->
-                if (nextEp != null) {
-                    _uiState.value = _uiState.value.copy(nextEpisode = nextEp)
-                }
-            }
+            val sid = resolvedSeriesId
+                ?: libraryRepo.getItemDetail(currentItemId).getOrNull()?.seriesId
+                ?: return@launch
+            resolvedSeriesId = sid
+
+            val nextDef = async { libraryRepo.getNextEpisode(sid, currentItemId).getOrNull() }
+            val prevDef = async { libraryRepo.getPreviousEpisode(sid, currentItemId).getOrNull() }
+            val next = nextDef.await()
+            val prev = prevDef.await()
+            _uiState.value = _uiState.value.copy(
+                nextEpisode = next ?: _uiState.value.nextEpisode,
+                previousEpisode = prev
+            )
         }
     }
 
@@ -264,12 +285,13 @@ class PlayerViewModel(
                     showSkipCredits = showCredits
                 )
 
-                // Up Next logic
+                // Up Next logic — suppressed when the user armed "stop at end of episode".
                 val state = _uiState.value
                 if (duration > 0 && currentPos >= duration - 30_000
                     && state.nextEpisode != null
                     && autoPlayNext
                     && !upNextDismissed
+                    && !state.sleepTimerEndOfEpisode
                 ) {
                     if (!state.showUpNext) {
                         _uiState.value = state.copy(showUpNext = true, upNextCountdown = 30)
@@ -384,7 +406,78 @@ class PlayerViewModel(
     fun dismissDialogs() {
         _uiState.value = _uiState.value.copy(
             showTrackDialog = null,
-            showSpeedDialog = false
+            showSpeedDialog = false,
+            showSleepTimerDialog = false,
+            showQualityDialog = false
+        )
+    }
+
+    fun showQualityDialog() {
+        _uiState.value = _uiState.value.copy(showQualityDialog = true)
+    }
+
+    fun setStreamingQuality(quality: Int) {
+        if (quality == currentStreamingQuality) {
+            _uiState.value = _uiState.value.copy(showQualityDialog = false)
+            return
+        }
+        val resumePosition = player.currentPosition.coerceAtLeast(0L)
+        currentStreamingQuality = quality
+        _uiState.value = _uiState.value.copy(
+            streamingQuality = quality,
+            showQualityDialog = false
+        )
+        player.stop()
+        player.clearMediaItems()
+        val streamUrl = playbackRepo.getStreamUrl(currentItemId, currentStreamingQuality)
+        player.setMediaItem(MediaItem.fromUri(streamUrl))
+        player.prepare()
+        if (resumePosition > 0) player.seekTo(resumePosition)
+        player.play()
+    }
+
+    fun showSleepTimerDialog() {
+        _uiState.value = _uiState.value.copy(showSleepTimerDialog = true)
+    }
+
+    fun setSleepTimerMinutes(minutes: Int) {
+        sleepTimerJob?.cancel()
+        val totalMs = minutes * 60_000L
+        _uiState.value = _uiState.value.copy(
+            sleepTimerRemainingMs = totalMs,
+            sleepTimerEndOfEpisode = false,
+            showSleepTimerDialog = false
+        )
+        sleepTimerJob = viewModelScope.launch {
+            val expiresAt = System.currentTimeMillis() + totalMs
+            while (isActive) {
+                val remaining = expiresAt - System.currentTimeMillis()
+                if (remaining <= 0) {
+                    player.pause()
+                    _uiState.value = _uiState.value.copy(sleepTimerRemainingMs = 0L)
+                    break
+                }
+                _uiState.value = _uiState.value.copy(sleepTimerRemainingMs = remaining)
+                delay(1000)
+            }
+        }
+    }
+
+    fun setSleepTimerEndOfEpisode() {
+        sleepTimerJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            sleepTimerRemainingMs = 0L,
+            sleepTimerEndOfEpisode = true,
+            showSleepTimerDialog = false
+        )
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            sleepTimerRemainingMs = 0L,
+            sleepTimerEndOfEpisode = false,
+            showSleepTimerDialog = false
         )
     }
 
@@ -415,7 +508,12 @@ class PlayerViewModel(
     }
 
     fun showControls() {
-        _uiState.value = _uiState.value.copy(showControls = true)
+        // Skip the StateFlow emit when controls are already visible — d-pad nav on TV
+        // can fire this dozens of times per row traversal and each emit recomposes the
+        // player chrome. Still kick the hide timer so navigation keeps the chrome alive.
+        if (!_uiState.value.showControls) {
+            _uiState.value = _uiState.value.copy(showControls = true)
+        }
         restartHideTimer()
     }
 
@@ -426,8 +524,11 @@ class PlayerViewModel(
 
     private fun restartHideTimer() {
         controlsHideJob?.cancel()
+        // TV needs a longer window — d-pad navigation across the bottom row takes several
+        // seconds, whereas touch users tap once and expect the chrome to fade quickly.
+        val hideDelayMs = if (isTV) 7000L else 2500L
         controlsHideJob = viewModelScope.launch {
-            delay(2500)
+            delay(hideDelayMs)
             _uiState.value = _uiState.value.copy(showControls = false)
         }
     }
@@ -435,6 +536,16 @@ class PlayerViewModel(
     fun playNextEpisode() {
         if (nextEpisodeTriggered) return
         val nextEp = _uiState.value.nextEpisode ?: return
+        transitionToEpisode(nextEp)
+    }
+
+    fun playPreviousEpisode() {
+        if (nextEpisodeTriggered) return
+        val prevEp = _uiState.value.previousEpisode ?: return
+        transitionToEpisode(prevEp)
+    }
+
+    private fun transitionToEpisode(episode: BaseItemDto) {
         nextEpisodeTriggered = true
 
         viewModelScope.launch {
@@ -444,7 +555,7 @@ class PlayerViewModel(
             )
         }
 
-        currentItemId = nextEp.id
+        currentItemId = episode.id
         creditsSkipped = false
         introSkipped = false
         upNextDismissed = false
@@ -452,10 +563,11 @@ class PlayerViewModel(
         nextEpisodeTriggered = false
 
         _uiState.value = _uiState.value.copy(
-            title = nextEp.name ?: "",
+            title = episode.name ?: "",
             currentPosition = 0L,
             duration = 0L,
             nextEpisode = null,
+            previousEpisode = null,
             showUpNext = false,
             upNextCountdown = 30,
             showSkipIntro = false,
@@ -490,6 +602,7 @@ class PlayerViewModel(
 
     override fun onCleared() {
         stopPlayback()
+        sleepTimerJob?.cancel()
         mediaSession.release()
         player.release()
         super.onCleared()

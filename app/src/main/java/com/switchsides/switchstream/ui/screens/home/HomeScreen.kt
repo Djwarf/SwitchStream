@@ -335,12 +335,14 @@ private fun MediaRow(
             val year = item.productionYear?.toString()
             val unplayed = item.userData?.unplayedItemCount ?: 0
             val badgeText = if (unplayed > 0) "$unplayed NEW" else null
+            // For episodes, show the parent series (poster + name) and route to the series detail.
+            val targetId = item.seriesId ?: item.id
             EditorialCard(
-                title = item.name ?: "",
-                imageUrl = imageRepo.getThumbUrl(item.id),
+                title = item.seriesName ?: item.name ?: "",
+                imageUrl = imageRepo.getThumbUrl(targetId),
                 subtitle = year,
                 typeIcon = itemTypeIcon(item),
-                onClick = { onItemClick(item.id.toString()) },
+                onClick = { onItemClick(targetId.toString()) },
                 badge = badgeText
             )
         }

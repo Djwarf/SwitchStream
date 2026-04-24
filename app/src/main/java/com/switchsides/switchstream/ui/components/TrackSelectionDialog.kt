@@ -4,7 +4,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,9 +30,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
+import com.switchsides.switchstream.ui.util.autoFocusOnAppear
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -45,8 +44,6 @@ import com.switchsides.switchstream.ui.theme.GlassSurface
 import com.switchsides.switchstream.ui.theme.GlassSurfaceLight
 import com.switchsides.switchstream.ui.theme.Divider
 import com.switchsides.switchstream.ui.theme.OverlayBlack
-import com.switchsides.switchstream.ui.theme.SurfaceElevated
-import com.switchsides.switchstream.ui.theme.SurfaceVariant
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.theme.TextSecondary
 
@@ -106,28 +103,27 @@ fun TrackSelectionDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Track list
+            // Track list — first row auto-claims focus so d-pad CENTER selects immediately.
             LazyColumn {
-                // None option
                 if (showNoneOption) {
                     item {
-                        val isSelected = selectedIndex == -1
                         TrackRow(
                             label = "None",
                             detail = null,
-                            isSelected = isSelected,
-                            onClick = { onSelect(-1) }
+                            isSelected = selectedIndex == -1,
+                            onClick = { onSelect(-1) },
+                            modifier = Modifier.autoFocusOnAppear()
                         )
                     }
                 }
 
                 itemsIndexed(tracks, key = { index, _ -> index }) { index, track ->
-                    val isSelected = index == selectedIndex
                     TrackRow(
                         label = track.title.ifEmpty { track.language ?: "Track ${index + 1}" },
                         detail = track.codec,
-                        isSelected = isSelected,
-                        onClick = { onSelect(index) }
+                        isSelected = index == selectedIndex,
+                        onClick = { onSelect(index) },
+                        modifier = if (!showNoneOption && index == 0) Modifier.autoFocusOnAppear() else Modifier
                     )
                 }
             }
@@ -140,13 +136,14 @@ private fun TrackRow(
     label: String,
     detail: String?,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
             .clickable { onClick() }

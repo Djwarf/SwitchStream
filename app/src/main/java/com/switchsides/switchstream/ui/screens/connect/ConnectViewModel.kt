@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class ConnectUiState(
     val serverUrl: String = "",
@@ -21,6 +22,11 @@ class ConnectViewModel(
     private val container: AppContainer,
     private val sessionManager: SessionManager
 ) : ViewModel() {
+
+    private companion object {
+        const val DEMO_URL = "https://demo.jellyfin.org/stable"
+        const val DEMO_USERNAME = "demo"
+    }
 
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
@@ -65,6 +71,65 @@ class ConnectViewModel(
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = "Could not connect: ${e.message}"
+                    )
+                }
+            )
+        }
+    }
+
+    fun connectAsDemo(onReady: () -> Unit) {
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            error = null,
+            serverUrl = DEMO_URL
+        )
+
+        viewModelScope.launch {
+            container.setServerConnection(DEMO_URL)
+            val authRepo = container.createAuthRepository()
+
+            authRepo.validateServer().fold(
+                onSuccess = { info ->
+                    val serverName = info.serverName ?: "Jellyfin Demo"
+                    sessionManager.saveServerInfo(DEMO_URL, serverName)
+
+                    authRepo.login(DEMO_USERNAME, "").fold(
+                        onSuccess = { result ->
+                            val token = result.accessToken ?: ""
+                            val userId = result.user?.id ?: UUID.randomUUID()
+                            val username = result.user?.name ?: DEMO_USERNAME
+                            container.setAuthenticated(DEMO_URL, token, userId)
+                            sessionManager.saveSession(
+                                serverUrl = DEMO_URL,
+                                authToken = token,
+                                userId = userId.toString(),
+                                serverName = serverName,
+                                username = username
+                            )
+                            sessionManager.cacheUser(
+                                serverUrl = DEMO_URL,
+                                authToken = token,
+                                userId = userId.toString(),
+                                username = username
+                            )
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                serverName = serverName
+                            )
+                            onReady()
+                        },
+                        onFailure = { e ->
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = "Demo login failed: ${e.message}"
+                            )
+                        }
+                    )
+                },
+                onFailure = { e ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Could not reach demo server: ${e.message}"
                     )
                 }
             )

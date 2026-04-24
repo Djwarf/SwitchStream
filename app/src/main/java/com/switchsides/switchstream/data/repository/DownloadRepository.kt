@@ -57,7 +57,9 @@ class DownloadRepository(
         silent: Boolean = false
     ) {
         val filePath = File(getDownloadDir(), "$itemId.mp4").absolutePath
-        val treeUri = settingsManager?.settings?.first()?.downloadLocationTreeUri.orEmpty()
+        val currentSettings = settingsManager?.settings?.first()
+        val treeUri = currentSettings?.downloadLocationTreeUri.orEmpty()
+        val wifiOnly = currentSettings?.downloadsWifiOnly == true
 
         dao.insert(
             DownloadedMedia(
@@ -86,7 +88,7 @@ class DownloadRepository(
             )
             .setConstraints(
                 Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
                     .build()
             )
             .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)

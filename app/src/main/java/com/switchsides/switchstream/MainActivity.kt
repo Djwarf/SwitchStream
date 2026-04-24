@@ -2,6 +2,7 @@ package com.switchsides.switchstream
 
 import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -12,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,12 +35,22 @@ class MainActivity : ComponentActivity() {
     var pipEnabled: Boolean = false
     var pendingDeepLink: String? = null
 
+    // Compose-observable PiP state. Flipped by onPictureInPictureModeChanged so overlays can react.
+    val isInPipState: MutableState<Boolean> = mutableStateOf(false)
+
+    // Current video aspect ratio (width/height) provided by PlayerScreen. Null → fall back to 16:9.
+    var currentVideoAspect: Rational? = null
+
     fun enterPipIfEnabled(): Boolean {
         if (!isInPlayer || !pipEnabled) return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val aspect = currentVideoAspect?.takeIf { it.numerator > 0 && it.denominator > 0 }
+                ?: Rational(16, 9)
+            // Android PiP clamps aspect ratio to [1:2.39, 2.39:1]. Coerce to stay inside.
+            val safeAspect = clampAspect(aspect)
             enterPictureInPictureMode(
                 PictureInPictureParams.Builder()
-                    .setAspectRatio(Rational(16, 9))
+                    .setAspectRatio(safeAspect)
                     .build()
             )
             return true
@@ -46,9 +58,24 @@ class MainActivity : ComponentActivity() {
         return false
     }
 
+    private fun clampAspect(r: Rational): Rational {
+        val min = Rational(100, 239) // ~1:2.39
+        val max = Rational(239, 100) // ~2.39:1
+        return when {
+            r.toFloat() < min.toFloat() -> min
+            r.toFloat() > max.toFloat() -> max
+            else -> r
+        }
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         enterPipIfEnabled()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipState.value = isInPictureInPictureMode
     }
 
     override fun onNewIntent(intent: Intent) {
