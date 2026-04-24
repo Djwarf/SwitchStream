@@ -48,6 +48,7 @@ import com.switchsides.switchstream.ui.screens.settings.SettingsViewModel
 import org.jellyfin.sdk.model.api.BaseItemDto
 import java.util.UUID
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
     val navController = rememberNavController()
@@ -71,7 +72,9 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
     val defaultPopExit = fadeOut(androidx.compose.animation.core.tween(100)) +
             slideOutHorizontally(androidx.compose.animation.core.tween(100)) { it / 4 }
 
-    NavHost(
+    androidx.compose.animation.SharedTransitionLayout {
+        val sharedScope = this
+        NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
@@ -122,6 +125,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             popEnterTransition = { defaultPopEnter },
             popExitTransition = { defaultPopExit }
         ) {
+            val animatedScope = this
             val vm = viewModel {
                 HomeViewModel(
                     container.createLibraryRepository(),
@@ -134,23 +138,28 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             }
             val uiState by vm.uiState.collectAsState()
 
-            DrawerWrappedScreen(
-                currentRoute = Screen.Home.route,
-                libraries = uiState.libraries,
-                navController = navController,
-                container = container
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.switchsides.switchstream.ui.util.LocalSharedTransitionScope provides sharedScope,
+                com.switchsides.switchstream.ui.util.LocalAnimatedContentScope provides animatedScope
             ) {
-                HomeScreen(
-                    viewModel = vm,
-                    onItemClick = { itemId ->
-                        navController.navigate(Screen.Detail.createRoute(itemId))
-                    },
-                    onLibraryClick = { libraryId, libraryName ->
-                        navController.navigate(
-                            Screen.Library.createRoute(libraryId, Uri.encode(libraryName))
-                        )
-                    }
-                )
+                DrawerWrappedScreen(
+                    currentRoute = Screen.Home.route,
+                    libraries = uiState.libraries,
+                    navController = navController,
+                    container = container
+                ) {
+                    HomeScreen(
+                        viewModel = vm,
+                        onItemClick = { itemId ->
+                            navController.navigate(Screen.Detail.createRoute(itemId))
+                        },
+                        onLibraryClick = { libraryId, libraryName ->
+                            navController.navigate(
+                                Screen.Library.createRoute(libraryId, Uri.encode(libraryName))
+                            )
+                        }
+                    )
+                }
             }
         }
 
@@ -201,6 +210,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             popEnterTransition = { defaultPopEnter },
             popExitTransition = { defaultPopExit }
         ) { backStackEntry ->
+            val animatedScope = this
             val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
             val vm = viewModel {
                 DetailViewModel(
@@ -213,35 +223,40 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     settingsManager = container.settingsManager
                 )
             }
-            DrawerWrappedScreen(
-                currentRoute = Screen.Detail.route,
-                libraries = emptyList(),
-                navController = navController,
-                container = container
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.switchsides.switchstream.ui.util.LocalSharedTransitionScope provides sharedScope,
+                com.switchsides.switchstream.ui.util.LocalAnimatedContentScope provides animatedScope
             ) {
-                DetailScreen(
-                    viewModel = vm,
-                    onPlayClick = { id ->
-                        val title = Uri.encode(vm.uiState.value.item?.name ?: "")
-                        val seriesId = if (vm.uiState.value.isSeries) {
-                            vm.uiState.value.item?.id?.toString() ?: ""
-                        } else ""
-                        navController.navigate(Screen.Player.createRoute(id, title, seriesId))
-                    },
-                    onPersonClick = { personId, personName ->
-                        if (personId.isNotEmpty()) {
-                            navController.navigate(
-                                Screen.Person.createRoute(personId, Uri.encode(personName))
-                            )
+                DrawerWrappedScreen(
+                    currentRoute = Screen.Detail.route,
+                    libraries = emptyList(),
+                    navController = navController,
+                    container = container
+                ) {
+                    DetailScreen(
+                        viewModel = vm,
+                        onPlayClick = { id ->
+                            val title = Uri.encode(vm.uiState.value.item?.name ?: "")
+                            val seriesId = if (vm.uiState.value.isSeries) {
+                                vm.uiState.value.item?.id?.toString() ?: ""
+                            } else ""
+                            navController.navigate(Screen.Player.createRoute(id, title, seriesId))
+                        },
+                        onPersonClick = { personId, personName ->
+                            if (personId.isNotEmpty()) {
+                                navController.navigate(
+                                    Screen.Person.createRoute(personId, Uri.encode(personName))
+                                )
+                            }
+                        },
+                        onGenreClick = { genre ->
+                            navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
+                        },
+                        onSeriesClick = { seriesId ->
+                            navController.navigate(Screen.Detail.createRoute(seriesId))
                         }
-                    },
-                    onGenreClick = { genre ->
-                        navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
-                    },
-                    onSeriesClick = { seriesId ->
-                        navController.navigate(Screen.Detail.createRoute(seriesId))
-                    }
-                )
+                    )
+                }
             }
         }
 
@@ -543,6 +558,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     playbackRepo = container.createPlaybackRepository(),
                     libraryRepo = container.createLibraryRepository(),
                     settingsManager = container.settingsManager,
+                    imageRepo = container.createImageRepository(),
                     initialItemId = UUID.fromString(itemId),
                     seriesId = seriesIdStr?.let { UUID.fromString(it) },
                     title = title,
@@ -569,6 +585,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             )
         }
     }
+    } // end SharedTransitionLayout
 }
 
 @Composable

@@ -22,6 +22,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.theme.AccentBlue
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
 import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.GlassSurface
 import com.switchsides.switchstream.ui.theme.GlassSurfaceLight
@@ -67,11 +68,11 @@ fun SeasonSelector(
                 )
             ) {
                 Text(
-                    text = season.name ?: "Season ${index + 1}",
-                    style = MaterialTheme.typography.labelLarge,
+                    text = (season.name ?: "Season ${index + 1}").uppercase(),
+                    style = EditorialRowLabel,
                     color = textColor,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                 )
             }
         }

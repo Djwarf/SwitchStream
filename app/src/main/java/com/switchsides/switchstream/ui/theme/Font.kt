@@ -6,14 +6,23 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import com.switchsides.switchstream.R
 
-// Primary font family — system sans-serif (Roboto on Android TV)
+// UI / body — system sans-serif (Roboto on Android TV). Neutral, highly legible.
 val StreamingSansFamily = FontFamily.SansSerif
 
-// Legacy — kept so existing references don't break
-val CrimsonTextFamily = FontFamily(
+// Display / headlines — Crimson Text, a transitional serif in the Garamond family.
+// Gives content titles an editorial/curatorial feel (think Criterion, Mubi) without
+// fighting the system sans used for UI chrome.
+val EditorialSerifFamily = FontFamily(
     Font(R.font.crimson_text_regular, FontWeight.Normal),
     Font(R.font.crimson_text_semibold, FontWeight.SemiBold),
     Font(R.font.crimson_text_bold, FontWeight.Bold),
     Font(R.font.crimson_text_italic, FontWeight.Normal, FontStyle.Italic),
     Font(R.font.crimson_text_bold_italic, FontWeight.Bold, FontStyle.Italic)
 )
+
+// Back-compat alias so any remaining `CrimsonTextFamily` call sites compile.
+@Deprecated(
+    message = "Use EditorialSerifFamily instead.",
+    replaceWith = ReplaceWith("EditorialSerifFamily")
+)
+val CrimsonTextFamily = EditorialSerifFamily

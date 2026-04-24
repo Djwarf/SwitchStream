@@ -40,6 +40,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.switchsides.switchstream.ui.theme.AccentBlue
 import com.switchsides.switchstream.ui.theme.Divider
+import com.switchsides.switchstream.ui.theme.EditorialMono
 import com.switchsides.switchstream.ui.theme.PureBlack
 import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.SuccessGreen
@@ -59,7 +60,12 @@ fun EpisodeRow(
     onDownloadClick: (() -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isFocused) 1.03f else 1f)
+    val scale by animateFloatAsState(if (isFocused) 1.03f else 1f, label = "episode_scale")
+    val accentWidth by animateFloatAsState(
+        targetValue = if (isFocused) 3f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(220),
+        label = "episode_accent_width"
+    )
 
     val episodeNumber = episode.indexNumber
     val runtimeMinutes = episode.runTimeTicks?.let { it / 600_000_000 }
@@ -67,29 +73,42 @@ fun EpisodeRow(
     val isPlayed = episode.userData?.played == true
 
     val dims = com.switchsides.switchstream.ui.theme.LocalDimensions.current
-    Surface(
-        onClick = onClick,
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(dims.episodeRowHeight)
-            .clickable { onClick() }
-            .onFocusChanged { isFocused = it.isFocused }
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = GlassSurface,
-            focusedContainerColor = GlassSurfaceLight
-        ),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(1.5.dp, PureWhite.copy(alpha = 0.8f)),
-                shape = RoundedCornerShape(8.dp)
-            )
-        )
     ) {
+        // Editorial margin accent — animates in from 0 → 3dp on focus.
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(accentWidth.dp)
+                .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
+                .background(AccentBlue)
+        )
+        Surface(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dims.episodeRowHeight)
+                .clickable { onClick() }
+                .onFocusChanged { isFocused = it.isFocused }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = GlassSurface,
+                focusedContainerColor = GlassSurfaceLight
+            ),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(1.5.dp, PureWhite.copy(alpha = 0.8f)),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            )
+        ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             // Thumbnail
             Box(
@@ -155,20 +174,20 @@ fun EpisodeRow(
             ) {
                 // Episode number + runtime on one line
                 val metaLine = buildString {
-                    if (episodeNumber != null) append("E$episodeNumber")
+                    if (episodeNumber != null) append("E%02d".format(episodeNumber))
                     if (runtimeMinutes != null) {
-                        if (isNotEmpty()) append(" \u00b7 ")
+                        if (isNotEmpty()) append("  \u00b7  ")
                         append("${runtimeMinutes}min")
                     }
                 }
                 if (metaLine.isNotEmpty()) {
                     Text(
                         text = metaLine,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = EditorialMono,
                         color = AccentBlue,
                         maxLines = 1
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
 
                 Text(
@@ -222,6 +241,7 @@ fun EpisodeRow(
                     )
                 }
             }
+        }
         }
     }
 }

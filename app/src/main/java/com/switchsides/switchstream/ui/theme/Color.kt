@@ -10,9 +10,16 @@ val SurfaceFocus = Color(0xFF2A2A2E)
 val TextPrimary = Color(0xFFF5F5F7)
 val TextSecondary = Color(0xFFA1A1A6)
 val TextTertiary = Color(0xFF636366)
-val AccentBlue = Color(0xFF0A84FF)
+// Editorial vermillion — the one brand accent. Slightly desaturated so it reads
+// confidently on black without vibrating the way a pure red would.
+val AccentRed = Color(0xFFE63946)
+val AccentSubtle = Color(0x26E63946)  // 15% opacity brand red
+
+// Back-compat alias. Call sites still read "AccentBlue" but the color is red now.
+val AccentBlue = AccentRed
+
+// Deeper burgundy kept for secondary accents (e.g., destructive button tint).
 val AccentBurgundy = Color(0xFF8B1A1A)
-val AccentSubtle = Color(0x260A84FF)  // 15% opacity blue
 val ErrorRed = Color(0xFFFF453A)
 val SuccessGreen = Color(0xFF30D158)
 val Divider = Color(0xFF2C2C2E)
@@ -25,7 +32,7 @@ val GlassSurface = Color(0xFF1C1C1E).copy(alpha = 0.65f)
 val GlassSurfaceLight = Color(0xFF2A2A2E).copy(alpha = 0.55f)
 val GlassBorder = Color(0xFFFFFFFF).copy(alpha = 0.12f)
 val GlassBorderFocus = Color(0xFFFFFFFF).copy(alpha = 0.35f)
-val GlassGlow = Color(0xFF0A84FF).copy(alpha = 0.15f)
+val GlassGlow = AccentRed.copy(alpha = 0.15f)
 
 // Legacy aliases — kept so any stray references compile but map to new palette
 val BurgundyPrimary = SurfaceElevated
@@ -36,4 +43,4 @@ val Newsprint = TextPrimary
 val NewsprintDim = TextSecondary
 val InkGray = TextTertiary
 val RuleGray = Divider
-val GoldAccent = AccentBlue
+val GoldAccent = AccentRed

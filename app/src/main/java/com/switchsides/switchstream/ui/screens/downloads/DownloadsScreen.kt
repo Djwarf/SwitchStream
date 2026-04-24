@@ -132,7 +132,7 @@ private fun DestinationBanner(treeUri: String, wifiOnly: Boolean) {
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "Saving to: $label",
-            style = MaterialTheme.typography.labelMedium,
+            style = com.switchsides.switchstream.ui.theme.EditorialMono,
             color = TextPrimary,
             maxLines = 1,
             modifier = Modifier.weight(1f)
@@ -214,7 +214,7 @@ private fun DownloadRow(
             }
             Text(
                 text = statusLine(download),
-                style = MaterialTheme.typography.labelSmall,
+                style = com.switchsides.switchstream.ui.theme.EditorialMono,
                 color = when (download.downloadState) {
                     DownloadState.COMPLETE -> SuccessGreen
                     DownloadState.FAILED -> ErrorRed

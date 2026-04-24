@@ -6,11 +6,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,6 +35,9 @@ import com.switchsides.switchstream.R
 import com.switchsides.switchstream.ui.components.FocusableButton
 import com.switchsides.switchstream.ui.components.LoadingIndicator
 import com.switchsides.switchstream.ui.components.SwitchStreamTextField
+import com.switchsides.switchstream.ui.theme.AccentRed
+import com.switchsides.switchstream.ui.theme.EditorialMono
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
 import com.switchsides.switchstream.ui.theme.ErrorRed
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.GlassSurface
@@ -75,12 +80,33 @@ fun ConnectScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(40.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .width(18.dp)
+                            .height(2.dp)
+                            .background(AccentRed)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "SET UP SERVER",
+                        style = EditorialRowLabel,
+                        color = AccentRed
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Enter Server Address",
                     style = MaterialTheme.typography.headlineSmall,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -99,12 +125,29 @@ fun ConnectScreen(
                 )
 
                 if (uiState.error != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = uiState.error!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ErrorRed
-                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .width(12.dp)
+                                    .height(2.dp)
+                                    .background(ErrorRed)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "UNABLE TO CONNECT",
+                                style = EditorialRowLabel,
+                                color = ErrorRed
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = uiState.error!!,
+                            style = EditorialMono,
+                            color = ErrorRed
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))

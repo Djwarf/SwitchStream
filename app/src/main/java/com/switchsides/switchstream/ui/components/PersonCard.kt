@@ -31,6 +31,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
 import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.theme.TextSecondary
@@ -96,10 +97,10 @@ fun PersonCard(
             )
 
             if (role != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = role,
-                    style = MaterialTheme.typography.labelMedium,
+                    text = role.uppercase(),
+                    style = EditorialRowLabel,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
                     maxLines = 1,

@@ -19,8 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -41,6 +47,7 @@ import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.theme.TextSecondary
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun EditorialCard(
     title: String,
@@ -52,10 +59,31 @@ fun EditorialCard(
     typeIcon: ImageVector? = null,
     cardWidth: Dp = 240.dp,
     imageHeight: Dp = 135.dp,
-    badge: String? = null
+    badge: String? = null,
+    // Optional shared-element key. When non-null AND a SharedTransitionScope is in
+    // scope (via NavGraph's wrap), the poster image will shared-bounds animate into
+    // the matching key at the destination (Detail backdrop). No-op otherwise.
+    sharedKey: String? = null
 ) {
+    val sharedScope = com.switchsides.switchstream.ui.util.LocalSharedTransitionScope.current
+    val animatedScope = com.switchsides.switchstream.ui.util.LocalAnimatedContentScope.current
     var isFocused by remember { mutableStateOf(false) }
     val haptic = com.switchsides.switchstream.ui.util.rememberHaptic()
+
+    // Parallax within the card — the poster image leans in slightly beyond the card's
+    // own 1.08 scale, and a specular highlight fades across the top edge. Combined
+    // they give the focused card the feel of an Apple TV "parallax poster" without
+    // needing pointer tracking.
+    val imageScale by animateFloatAsState(
+        targetValue = if (isFocused) 1.06f else 1f,
+        animationSpec = tween(320),
+        label = "card_image_scale"
+    )
+    val sheenAlpha by animateFloatAsState(
+        targetValue = if (isFocused) 0.28f else 0f,
+        animationSpec = tween(320),
+        label = "card_sheen"
+    )
 
     Card(
         onClick = { haptic(); onClick() },
@@ -81,16 +109,54 @@ fun EditorialCard(
         scale = CardDefaults.scale(focusedScale = 1.08f)
     ) {
         Column {
-            Box {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(imageHeight)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            ) {
+                val sharedBoundsModifier = if (sharedKey != null && sharedScope != null && animatedScope != null) {
+                    with(sharedScope) {
+                        Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = sharedKey),
+                            animatedVisibilityScope = animatedScope,
+                            resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.ScaleToBounds()
+                        )
+                    }
+                } else Modifier
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = title,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(imageHeight)
-                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                        .then(sharedBoundsModifier)
+                        .graphicsLayer {
+                            scaleX = imageScale
+                            scaleY = imageScale
+                        },
                     contentScale = ContentScale.Crop
                 )
+                // Specular sheen — thin diagonal highlight fading from top-left.
+                // Only painted when focus alpha > 0 so it's free when idle.
+                if (sheenAlpha > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(imageHeight)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        PureWhite.copy(alpha = sheenAlpha),
+                                        PureWhite.copy(alpha = sheenAlpha * 0.25f),
+                                        Color.Transparent
+                                    ),
+                                    start = Offset.Zero,
+                                    end = Offset(800f, 1200f)
+                                )
+                            )
+                    )
+                }
                 // Type badge (top-left)
                 if (typeIcon != null) {
                     Box(

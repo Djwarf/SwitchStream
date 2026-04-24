@@ -54,7 +54,8 @@ data class PlayerUiState(
     val sleepTimerEndOfEpisode: Boolean = false,
     val showSleepTimerDialog: Boolean = false,
     val streamingQuality: Int = 0,
-    val showQualityDialog: Boolean = false
+    val showQualityDialog: Boolean = false,
+    val backdropUrl: String? = null
 )
 
 enum class TrackDialogType { AUDIO, SUBTITLE }
@@ -64,6 +65,7 @@ class PlayerViewModel(
     private val playbackRepo: PlaybackRepository,
     private val libraryRepo: LibraryRepository,
     private val settingsManager: SettingsManager,
+    private val imageRepo: com.switchsides.switchstream.data.repository.ImageRepository,
     initialItemId: UUID,
     private val seriesId: UUID? = null,
     title: String,
@@ -72,7 +74,12 @@ class PlayerViewModel(
 
     private var currentItemId: UUID = initialItemId
 
-    private val _uiState = MutableStateFlow(PlayerUiState(title = title))
+    private val _uiState = MutableStateFlow(
+        PlayerUiState(
+            title = title,
+            backdropUrl = imageRepo.getBackdropUrl(initialItemId)
+        )
+    )
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     val player: ExoPlayer = ExoPlayer.Builder(context)
@@ -577,7 +584,8 @@ class PlayerViewModel(
             audioTracks = emptyList(),
             subtitleTracks = emptyList(),
             selectedAudioIndex = -1,
-            selectedSubtitleIndex = -1
+            selectedSubtitleIndex = -1,
+            backdropUrl = imageRepo.getBackdropUrl(episode.id)
         )
 
         player.stop()

@@ -466,7 +466,7 @@ private fun SettingsTile(
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = com.switchsides.switchstream.ui.theme.EditorialMono,
             color = if (isFocused) PureWhite else valueColor
         )
     }

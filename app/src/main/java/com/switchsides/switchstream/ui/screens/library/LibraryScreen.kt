@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
 import com.switchsides.switchstream.ui.components.EditorialCard
+import com.switchsides.switchstream.ui.components.filmGrain
 import org.jellyfin.sdk.model.api.BaseItemKind
 import com.switchsides.switchstream.ui.components.FocusableButton
 import com.switchsides.switchstream.ui.components.FilterSortBar
@@ -69,6 +70,7 @@ fun LibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
+            .then(if (dims.isTV) Modifier.filmGrain(alpha = 0.022f) else Modifier)
     ) {
         // Header — offset below floating nav on mobile/tablet
         Text(
@@ -104,8 +106,8 @@ fun LibraryScreen(
                 columns = GridCells.Adaptive(minSize = dims.gridMinCellSize),
                 state = gridState,
                 contentPadding = PaddingValues(horizontal = dims.screenPadding, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (dims.isTV) 28.dp else 20.dp),
+                verticalArrangement = Arrangement.spacedBy(if (dims.isTV) 32.dp else 20.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(uiState.items, key = { it.id }) { item ->

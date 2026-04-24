@@ -31,6 +31,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.switchsides.switchstream.data.repository.ImageRepository
 import com.switchsides.switchstream.ui.components.EditorialCard
+import com.switchsides.switchstream.ui.components.StaggeredReveal
+import com.switchsides.switchstream.ui.components.filmGrain
 import com.switchsides.switchstream.ui.components.EmptyState
 import com.switchsides.switchstream.ui.components.ErrorState
 import com.switchsides.switchstream.ui.components.HeroCarousel
@@ -72,6 +74,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(PureBlack.copy(alpha = 0.75f))
+            .then(if (dims.isTV) Modifier.filmGrain(alpha = 0.022f) else Modifier)
     ) {
         when {
             uiState.isLoading -> ShimmerHomeScreen()
@@ -143,101 +146,152 @@ private fun HomeContent(
         return
     }
 
+    // Staggered page-load reveal: hero fades in immediately, each row follows ~90ms behind.
+    // Tracked via a simple counter so reveal order follows render order.
+    var sectionIndex = 0
+    fun nextDelay(): Long = (sectionIndex++ * 90L).coerceAtMost(720L)
+
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Parallax driver — how far the hero has been scrolled. Zero when hero is the
+    // first visible item; caps at its height once the hero is offscreen (below).
+    val parallaxScrollPx by androidx.compose.runtime.remember {
+        androidx.compose.runtime.derivedStateOf {
+            if (listState.firstVisibleItemIndex == 0) {
+                listState.firstVisibleItemScrollOffset.toFloat()
+            } else 0f
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 48.dp)
     ) {
-        // Hero Carousel
+        // Hero Carousel — appears first, no delay.
         if (uiState.featuredItems.isNotEmpty()) {
+            val heroDelay = nextDelay()
             item(key = "hero_carousel") {
-                HeroCarousel(
-                    items = uiState.featuredItems,
-                    imageRepo = imageRepo,
-                    onPlayClick = onItemClick,
-                    onInfoClick = onItemClick
-                )
+                StaggeredReveal(delayMs = heroDelay, startOffsetY = 8) {
+                    HeroCarousel(
+                        items = uiState.featuredItems,
+                        imageRepo = imageRepo,
+                        onPlayClick = onItemClick,
+                        onInfoClick = onItemClick,
+                        parallaxOffsetProvider = { parallaxScrollPx }
+                    )
+                }
             }
         }
 
         // Recently Added
         if (uiState.recentlyAdded.isNotEmpty()) {
-            item { SectionHeader(title = "Recently Added") }
+            val d = nextDelay()
             item {
-                MediaRow(
-                    items = uiState.recentlyAdded,
-                    imageRepo = imageRepo,
-                    onItemClick = onItemClick
-                )
+                StaggeredReveal(delayMs = d) {
+                    androidx.compose.foundation.layout.Column {
+                        SectionHeader(title = "Recently Added")
+                        MediaRow(
+                            items = uiState.recentlyAdded,
+                            imageRepo = imageRepo,
+                            onItemClick = onItemClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
 
-        // Continue Watching — wider cards with progress bars
+        // Continue Watching
         if (uiState.continueWatching.isNotEmpty()) {
-            item { SectionHeader(title = "Continue Watching") }
+            val d = nextDelay()
             item {
-                ContinueWatchingRow(
-                    items = uiState.continueWatching,
-                    imageRepo = imageRepo,
-                    onItemClick = onItemClick
-                )
+                StaggeredReveal(delayMs = d) {
+                    androidx.compose.foundation.layout.Column {
+                        SectionHeader(title = "Continue Watching")
+                        ContinueWatchingRow(
+                            items = uiState.continueWatching,
+                            imageRepo = imageRepo,
+                            onItemClick = onItemClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
 
-        // Next Up — next episodes for shows you're watching
+        // Next Up
         if (uiState.nextUp.isNotEmpty()) {
-            item { SectionHeader(title = "Next Up") }
+            val d = nextDelay()
             item {
-                NextUpRow(
-                    items = uiState.nextUp,
-                    imageRepo = imageRepo,
-                    onItemClick = onItemClick
-                )
+                StaggeredReveal(delayMs = d) {
+                    androidx.compose.foundation.layout.Column {
+                        SectionHeader(title = "Next Up")
+                        NextUpRow(
+                            items = uiState.nextUp,
+                            imageRepo = imageRepo,
+                            onItemClick = onItemClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
 
         // My Favorites
         if (uiState.favorites.isNotEmpty()) {
-            item { SectionHeader(title = "My Favorites") }
+            val d = nextDelay()
             item {
-                MediaRow(
-                    items = uiState.favorites,
-                    imageRepo = imageRepo,
-                    onItemClick = onItemClick
-                )
+                StaggeredReveal(delayMs = d) {
+                    androidx.compose.foundation.layout.Column {
+                        SectionHeader(title = "My Favorites")
+                        MediaRow(
+                            items = uiState.favorites,
+                            imageRepo = imageRepo,
+                            onItemClick = onItemClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
 
-        // Per-library rows — standard cards
+        // Per-library rows
         for (library in uiState.libraries) {
             val libraryItems = uiState.latestByLibrary[library.id].orEmpty()
             if (libraryItems.isNotEmpty()) {
-                item { SectionHeader(title = library.name ?: "Library") }
+                val d = nextDelay()
                 item {
-                    MediaRow(
-                        items = libraryItems,
-                        imageRepo = imageRepo,
-                        onItemClick = onItemClick
-                    )
+                    StaggeredReveal(delayMs = d) {
+                        androidx.compose.foundation.layout.Column {
+                            SectionHeader(title = library.name ?: "Library")
+                            MediaRow(
+                                items = libraryItems,
+                                imageRepo = imageRepo,
+                                onItemClick = onItemClick
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 }
-                item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
 
-        // "Because you watched" recommendation rows
+        // "Because you watched" recommendations
         for (row in uiState.recommendations) {
-            item { SectionHeader(title = "Because you watched ${row.sourceTitle}") }
+            val d = nextDelay()
             item {
-                MediaRow(
-                    items = row.items,
-                    imageRepo = imageRepo,
-                    onItemClick = onItemClick
-                )
+                StaggeredReveal(delayMs = d) {
+                    androidx.compose.foundation.layout.Column {
+                        SectionHeader(title = "Because you watched ${row.sourceTitle}")
+                        MediaRow(
+                            items = row.items,
+                            imageRepo = imageRepo,
+                            onItemClick = onItemClick
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
     }
 }
@@ -271,7 +325,8 @@ private fun ContinueWatchingRow(
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(item.id.toString()) },
                 cardWidth = 300.dp,
-                imageHeight = 169.dp
+                imageHeight = 169.dp,
+                sharedKey = com.switchsides.switchstream.ui.util.sharedItemKey(item.id)
             )
         }
     }
@@ -310,7 +365,8 @@ private fun NextUpRow(
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(item.id.toString()) },
                 cardWidth = 260.dp,
-                imageHeight = 146.dp
+                imageHeight = 146.dp,
+                sharedKey = com.switchsides.switchstream.ui.util.sharedItemKey(item.id)
             )
         }
     }
@@ -343,7 +399,8 @@ private fun MediaRow(
                 subtitle = year,
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(targetId.toString()) },
-                badge = badgeText
+                badge = badgeText,
+                sharedKey = com.switchsides.switchstream.ui.util.sharedItemKey(targetId)
             )
         }
     }

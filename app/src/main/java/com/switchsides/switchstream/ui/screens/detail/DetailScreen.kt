@@ -2,6 +2,8 @@ package com.switchsides.switchstream.ui.screens.detail
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.lazy.LazyRow
@@ -61,6 +64,8 @@ import com.switchsides.switchstream.ui.components.SeasonSelector
 import com.switchsides.switchstream.ui.components.SectionHeader
 import com.switchsides.switchstream.ui.theme.LocalDimensions
 import com.switchsides.switchstream.ui.theme.AccentBlue
+import com.switchsides.switchstream.ui.theme.EditorialMono
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.GlassSurface
 import com.switchsides.switchstream.ui.theme.PureBlack
@@ -226,6 +231,7 @@ fun DetailScreen(
     }
 }
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DetailContent(
     uiState: DetailUiState,
@@ -244,9 +250,63 @@ private fun DetailContent(
     val dims = LocalDimensions.current
     val item = uiState.item ?: return
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+        // Ambient backdrop — blurred hero image with a long vertical gradient.
+        // Also the destination for the shared-element transition from card thumb.
+        val backdropUrl = androidx.compose.runtime.remember(item.id) {
+            imageRepo.getBackdropUrl(item.id)
+        }
+        val backdropHeight = dims.backdropHeight + 200.dp
+
+        val sharedScope = com.switchsides.switchstream.ui.util.LocalSharedTransitionScope.current
+        val animatedScope = com.switchsides.switchstream.ui.util.LocalAnimatedContentScope.current
+        @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+        val sharedBoundsModifier = if (sharedScope != null && animatedScope != null) {
+            with(sharedScope) {
+                Modifier.sharedBounds(
+                    sharedContentState = rememberSharedContentState(
+                        key = com.switchsides.switchstream.ui.util.sharedItemKey(item.id)
+                    ),
+                    animatedVisibilityScope = animatedScope,
+                    resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.ScaleToBounds()
+                )
+            }
+        } else Modifier
+
+        coil.compose.AsyncImage(
+            model = backdropUrl,
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(backdropHeight)
+                .then(sharedBoundsModifier)
+                .then(
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        Modifier.blur(radius = 48.dp)
+                    } else Modifier
+                )
+                .graphicsLayer { alpha = 0.55f },
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(backdropHeight)
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to PureBlack.copy(alpha = 0.2f),
+                            0.45f to PureBlack.copy(alpha = 0.55f),
+                            0.85f to PureBlack.copy(alpha = 0.9f),
+                            1f to PureBlack
+                        )
+                    )
+                )
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
         // Compact header: poster + info
         item {
             Spacer(modifier = Modifier.height(dims.topBarClearance + 16.dp))
@@ -269,23 +329,56 @@ private fun DetailContent(
 
                 // Info column
                 Column(modifier = Modifier.weight(1f)) {
-                    // Clickable parent-series link (episodes only)
+                    // Editorial eyebrow — FILM / SERIES / EPISODE, or the parent series link.
                     if (uiState.isEpisode && !uiState.parentSeriesId.isNullOrEmpty() && !uiState.parentSeriesName.isNullOrEmpty()) {
-                        Text(
-                            text = uiState.parentSeriesName,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = AccentBlue,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .clickable { onSeriesClick(uiState.parentSeriesId) }
                                 .padding(vertical = 2.dp)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(18.dp)
+                                    .height(2.dp)
+                                    .background(AccentBlue)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = uiState.parentSeriesName.uppercase(),
+                                style = EditorialRowLabel,
+                                color = AccentBlue
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    } else {
+                        val kindLabel = when {
+                            uiState.isSeries -> "SERIES"
+                            uiState.isEpisode -> "EPISODE"
+                            else -> "FILM"
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .width(18.dp)
+                                    .height(2.dp)
+                                    .background(AccentBlue)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = kindLabel,
+                                style = EditorialRowLabel,
+                                color = AccentBlue
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
                     Text(
                         text = item.name ?: "",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = if (dims.isTV) MaterialTheme.typography.displayMedium
+                               else MaterialTheme.typography.headlineLarge,
                         color = TextPrimary,
                         maxLines = 2
                     )
@@ -295,45 +388,48 @@ private fun DetailContent(
                         val s = item.parentIndexNumber
                         val e = item.indexNumber
                         if (s != null && e != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "S${s} \u00B7 E${e}",
-                                style = MaterialTheme.typography.labelMedium,
+                                text = "S%02d \u00B7 E%02d".format(s, e),
+                                style = EditorialMono,
                                 color = TextSecondary
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Metadata row
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        item.productionYear?.let { year ->
-                            Text(text = year.toString(), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                        }
+                    // Metadata row — monospace editorial strip
+                    val metadataParts = buildList {
+                        item.productionYear?.let { add(it.toString()) }
                         item.runTimeTicks?.let { ticks ->
                             val minutes = ticks / 600_000_000
-                            Text(text = "\u00B7 ${minutes}min", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                            add("${minutes}min")
                         }
-                        item.officialRating?.let { rating ->
-                            Text(text = "\u00B7 $rating", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                        }
+                        item.officialRating?.let { add(it) }
+                    }
+                    if (metadataParts.isNotEmpty()) {
+                        Text(
+                            text = metadataParts.joinToString("  \u00B7  "),
+                            style = EditorialMono,
+                            color = TextSecondary
+                        )
                     }
 
                     item.communityRating?.let { rating ->
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = "\u2606 ${"%.1f".format(rating)}",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = EditorialMono,
                             color = AccentBlue
                         )
                     }
 
                     if (uiState.isSeries && uiState.seasons.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "${uiState.seasons.size} Season${if (uiState.seasons.size != 1) "s" else ""}",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "${uiState.seasons.size} SEASON${if (uiState.seasons.size != 1) "S" else ""}",
+                            style = EditorialRowLabel,
                             color = TextSecondary
                         )
                     }
@@ -499,25 +595,30 @@ private fun DetailContent(
                     .fillMaxWidth()
                     .padding(horizontal = dims.screenPadding)
             ) {
-                // Tagline
+                // Tagline — italic serif pull quote, editorial subhead.
                 if (!item.taglines.isNullOrEmpty()) {
                     Text(
                         text = "\u201C${item.taglines!!.first()}\u201D",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
+                        ),
+                        color = TextSecondary,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
 
-                // Overview (expandable)
+                // Overview (expandable) — editorial measure, widened leading.
                 item.overview?.let { overview ->
                     var expanded by remember { mutableStateOf(false) }
                     Text(
                         text = overview,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = com.switchsides.switchstream.ui.theme.EditorialBody,
                         color = TextPrimary,
                         maxLines = if (expanded) Int.MAX_VALUE else 4,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 640.dp)
                     )
                     if (overview.length > 200) {
                         Spacer(modifier = Modifier.height(4.dp))
@@ -691,4 +792,5 @@ private fun DetailContent(
             Spacer(modifier = Modifier.height(48.dp))
         }
     }
+    } // end ambient-backdrop Box
 }

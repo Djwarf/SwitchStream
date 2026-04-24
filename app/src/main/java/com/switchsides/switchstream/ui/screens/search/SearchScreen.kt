@@ -60,11 +60,13 @@ fun SearchScreen(
 
         val totalResults = uiState.results.size + offlineResults.size
         if (uiState.hasSearched && totalResults > 0) {
+            val countLabel = if (offlineResults.isNotEmpty()) "$totalResults DOWNLOADED"
+                             else "$totalResults RESULTS"
             Text(
-                text = if (offlineResults.isNotEmpty()) "$totalResults downloaded" else "$totalResults results",
-                style = MaterialTheme.typography.labelMedium,
+                text = countLabel,
+                style = com.switchsides.switchstream.ui.theme.EditorialRowLabel,
                 color = TextSecondary,
-                modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = dims.screenPadding, vertical = 10.dp)
             )
         }
 

@@ -64,7 +64,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.navigation.Screen
 import com.switchsides.switchstream.ui.theme.AccentBlue
-import com.switchsides.switchstream.ui.theme.AccentBurgundy
+import com.switchsides.switchstream.ui.theme.EditorialSerifFamily
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.GlassBorderFocus
 import com.switchsides.switchstream.ui.theme.PureBlack
@@ -192,19 +192,47 @@ private fun TopNavBar(
             .padding(horizontal = 40.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Brand
-        Text(
-            text = "SWITCH",
-            style = MaterialTheme.typography.titleMedium,
-            color = PureWhite,
-            letterSpacing = 3.sp
+        // Wordmark — sans-caps paired with a serif italic for editorial character.
+        // A red underline paints in once on first launch, like a brush stroke, giving
+        // the brand a beat of personality before the nav settles into the chrome.
+        var underlineVisible by remember { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(260)
+            underlineVisible = true
+        }
+        val underlineWidth by animateFloatAsState(
+            targetValue = if (underlineVisible) 118f else 0f,
+            animationSpec = tween(durationMillis = 720, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            label = "wordmark_line"
         )
-        Text(
-            text = "STREAM",
-            style = MaterialTheme.typography.titleMedium,
-            color = AccentBurgundy,
-            letterSpacing = 3.sp
-        )
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "SWITCH",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PureWhite,
+                    letterSpacing = 3.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "stream",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = EditorialSerifFamily,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    ),
+                    color = AccentBlue,
+                    letterSpacing = 0.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Box(
+                modifier = Modifier
+                    .width(underlineWidth.dp)
+                    .height(1.5.dp)
+                    .background(AccentBlue)
+            )
+        }
 
         Spacer(modifier = Modifier.width(40.dp))
 
@@ -253,7 +281,7 @@ private fun NavPill(
     )
     val bgColor by animateColorAsState(
         when {
-            isSelected -> AccentBurgundy.copy(alpha = 0.2f)
+            isSelected -> AccentBlue.copy(alpha = 0.2f)
             isFocused -> PureWhite.copy(alpha = 0.1f)
             else -> Color.Transparent
         },
@@ -262,7 +290,7 @@ private fun NavPill(
     val borderColor by animateColorAsState(
         when {
             isFocused -> GlassBorderFocus
-            isSelected -> AccentBurgundy.copy(alpha = 0.4f)
+            isSelected -> AccentBlue.copy(alpha = 0.4f)
             else -> Color.Transparent
         },
         animationSpec = tween(200)
@@ -301,7 +329,7 @@ private fun NavPill(
                 imageVector = icon,
                 contentDescription = label,
                 tint = when {
-                    isSelected -> AccentBurgundy
+                    isSelected -> AccentBlue
                     isFocused -> PureWhite
                     else -> TextSecondary
                 },
@@ -330,8 +358,8 @@ private fun ProfileButton(
     var isFocused by remember { mutableStateOf(false) }
     val ringColor by animateColorAsState(
         when {
-            isFocused -> AccentBurgundy
-            isSelected -> AccentBurgundy.copy(alpha = 0.7f)
+            isFocused -> AccentBlue
+            isSelected -> AccentBlue.copy(alpha = 0.7f)
             else -> GlassBorder
         },
         animationSpec = tween(200)
@@ -362,7 +390,7 @@ private fun ProfileButton(
                 .clip(CircleShape)
                 .border(2.dp, ringColor, CircleShape)
                 .background(
-                    if (isSelected) AccentBurgundy.copy(alpha = 0.2f)
+                    if (isSelected) AccentBlue.copy(alpha = 0.2f)
                     else PureWhite.copy(alpha = 0.06f)
                 ),
             contentAlignment = Alignment.Center
@@ -372,13 +400,13 @@ private fun ProfileButton(
                 Text(
                     text = username.first().uppercase(),
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (isSelected || isFocused) AccentBurgundy else TextSecondary
+                    color = if (isSelected || isFocused) AccentBlue else TextSecondary
                 )
             } else {
                 Icon(
                     imageVector = Icons.Outlined.Person,
                     contentDescription = "Profile",
-                    tint = if (isSelected || isFocused) AccentBurgundy else TextSecondary,
+                    tint = if (isSelected || isFocused) AccentBlue else TextSecondary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -424,7 +452,7 @@ private fun MobileTopNavBar(
         androidx.compose.material3.Text(
             text = "S",
             style = MaterialTheme.typography.titleMedium,
-            color = AccentBurgundy
+            color = AccentBlue
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -460,7 +488,7 @@ private fun MobileTopNavBar(
                 .clip(CircleShape)
                 .border(
                     1.5.dp,
-                    if (currentRoute == Screen.Users.route) AccentBurgundy else GlassBorder,
+                    if (currentRoute == Screen.Users.route) AccentBlue else GlassBorder,
                     CircleShape
                 )
                 .background(PureWhite.copy(alpha = 0.06f))
@@ -470,7 +498,7 @@ private fun MobileTopNavBar(
             androidx.compose.material3.Icon(
                 imageVector = Icons.Outlined.Person,
                 contentDescription = "Profile",
-                tint = if (currentRoute == Screen.Users.route) AccentBurgundy else TextSecondary,
+                tint = if (currentRoute == Screen.Users.route) AccentBlue else TextSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -485,14 +513,14 @@ private fun MobileNavPill(
 ) {
     val bgColor by animateColorAsState(
         when {
-            isSelected -> AccentBurgundy.copy(alpha = 0.2f)
+            isSelected -> AccentBlue.copy(alpha = 0.2f)
             else -> Color.Transparent
         },
         animationSpec = tween(200)
     )
     val borderColor by animateColorAsState(
         when {
-            isSelected -> AccentBurgundy.copy(alpha = 0.4f)
+            isSelected -> AccentBlue.copy(alpha = 0.4f)
             else -> Color.Transparent
         },
         animationSpec = tween(200)

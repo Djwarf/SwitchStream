@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -158,12 +159,39 @@ fun LoginScreen(
                 }
 
                 if (uiState.error != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = uiState.error!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ErrorRed
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(ErrorRed.copy(alpha = 0.10f))
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .width(2.dp)
+                                .height(36.dp)
+                                .background(ErrorRed)
+                        )
+                        androidx.compose.foundation.layout.Spacer(
+                            modifier = Modifier.width(12.dp)
+                        )
+                        androidx.compose.foundation.layout.Column {
+                            Text(
+                                text = "SIGN-IN FAILED",
+                                style = com.switchsides.switchstream.ui.theme.EditorialRowLabel,
+                                color = ErrorRed
+                            )
+                            androidx.compose.foundation.layout.Spacer(
+                                modifier = Modifier.height(2.dp)
+                            )
+                            Text(
+                                text = uiState.error!!,
+                                style = com.switchsides.switchstream.ui.theme.EditorialMono,
+                                color = ErrorRed
+                            )
+                        }
+                    }
                 }
             }
         }

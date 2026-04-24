@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -77,6 +78,10 @@ import com.switchsides.switchstream.ui.theme.Divider
 import com.switchsides.switchstream.ui.theme.GlassSurface
 import com.switchsides.switchstream.ui.theme.GlassBorder
 import com.switchsides.switchstream.ui.theme.OverlayBlack
+import com.switchsides.switchstream.ui.theme.EditorialMono
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
+import com.switchsides.switchstream.ui.theme.PureBlack
+import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.SurfaceFocus
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.theme.TextSecondary
@@ -450,15 +455,34 @@ fun PlayerScreen(
                     .fillMaxSize()
                     .background(OverlayBlack)
             ) {
-                // Title at top
-                Text(
-                    text = uiState.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = TextPrimary,
+                // Title at top — eyebrow + serif headline
+                Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(32.dp)
-                )
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .width(18.dp)
+                                .height(2.dp)
+                                .background(AccentBlue)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "NOW PLAYING",
+                            style = EditorialRowLabel,
+                            color = com.switchsides.switchstream.ui.theme.PureWhite.copy(alpha = 0.8f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TextPrimary,
+                        maxLines = 2
+                    )
+                }
 
                 // Center play/pause button
                 Box(
@@ -622,24 +646,24 @@ fun PlayerScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Time display
+                    // Time display — monospace for the clock rhythm
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = formatTime(uiState.currentPosition),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = EditorialMono,
                             color = TextPrimary
                         )
                         Text(
-                            text = if (uiState.isPlaying) "Playing" else "Paused",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = if (uiState.isPlaying) "PLAYING" else "PAUSED",
+                            style = EditorialRowLabel,
                             color = AccentBlue
                         )
                         Text(
                             text = formatTime(uiState.duration),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = EditorialMono,
                             color = TextPrimary
                         )
                     }
@@ -853,6 +877,30 @@ fun PlayerScreen(
             )
         }
 
+        // "Now Playing" launch intro — 900ms film-leader overlay shown on entry and
+        // on episode transitions. Keyed to title so it replays when the ViewModel
+        // loads a new episode. Suppressed if the resume prompt takes over.
+        var introVisible by remember(uiState.title) { mutableStateOf(true) }
+        LaunchedEffect(uiState.title) {
+            introVisible = true
+            kotlinx.coroutines.delay(900)
+            introVisible = false
+        }
+        LaunchedEffect(uiState.showResumePrompt) {
+            if (uiState.showResumePrompt) introVisible = false
+        }
+        AnimatedVisibility(
+            visible = introVisible && !uiState.showResumePrompt,
+            enter = fadeIn(androidx.compose.animation.core.tween(200)),
+            exit = fadeOut(androidx.compose.animation.core.tween(400)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            com.switchsides.switchstream.ui.components.NowPlayingIntro(
+                title = uiState.title,
+                backdropUrl = uiState.backdropUrl
+            )
+        }
+
         } // end if (!isInPip)
     }
 }
@@ -864,9 +912,12 @@ private fun ControlIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
     androidx.tv.material3.Surface(
         onClick = onClick,
         modifier = modifier
+            .scale(if (isFocused) 1.1f else 1f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clickable { onClick() }
             .focusable(),
         shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
@@ -874,13 +925,13 @@ private fun ControlIconButton(
         ),
         colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
             containerColor = GlassSurface,
-            focusedContainerColor = GlassSurface
+            focusedContainerColor = PureWhite
         )
     ) {
         androidx.compose.material3.Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = TextPrimary,
+            tint = if (isFocused) PureBlack else TextPrimary,
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 6.dp)
                 .size(22.dp)
@@ -893,11 +944,12 @@ private fun ControlTextButton(
     text: String,
     onClick: () -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
-
+    var isFocused by remember { mutableStateOf(false) }
     androidx.tv.material3.Surface(
         onClick = onClick,
         modifier = Modifier
+            .scale(if (isFocused) 1.1f else 1f)
+            .onFocusChanged { isFocused = it.isFocused }
             .clickable { onClick() }
             .focusable(),
         shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
@@ -905,13 +957,13 @@ private fun ControlTextButton(
         ),
         colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
             containerColor = GlassSurface,
-            focusedContainerColor = GlassSurface
+            focusedContainerColor = PureWhite
         )
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = TextPrimary,
+            color = if (isFocused) PureBlack else TextPrimary,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         )
     }

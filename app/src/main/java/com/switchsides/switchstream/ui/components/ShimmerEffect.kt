@@ -19,6 +19,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.tv.material3.Text as TvText
+import com.switchsides.switchstream.ui.theme.AccentRed
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
+import com.switchsides.switchstream.ui.theme.PureWhite
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -94,12 +99,36 @@ fun ShimmerHomeScreen() {
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
-                                AccentBlue.copy(alpha = 0.06f * t),
+                                AccentRed.copy(alpha = 0.06f * t),
                                 Color.Transparent
                             )
                         )
                     )
             )
+
+            // Editorial "NOW LOADING" badge — top-right, like the hero pagination rubric.
+            // The accent bar's width pulses in sync with the skeleton cards so the whole
+            // screen breathes together.
+            val barWidth = 24.dp + (32.dp - 24.dp) * t
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 40.dp, end = 56.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(barWidth)
+                        .height(2.dp)
+                        .background(AccentRed.copy(alpha = 0.6f + 0.4f * t))
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                TvText(
+                    text = "NOW LOADING",
+                    style = EditorialRowLabel,
+                    color = PureWhite.copy(alpha = 0.7f)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))

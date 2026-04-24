@@ -33,6 +33,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.theme.AccentBlue
+import com.switchsides.switchstream.ui.theme.EditorialRowLabel
 import com.switchsides.switchstream.ui.theme.SurfaceFocus
 import com.switchsides.switchstream.ui.theme.SurfaceVariant
 import com.switchsides.switchstream.ui.theme.TextSecondary
@@ -188,11 +189,11 @@ private fun FilterChip(
         )
     ) {
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            text = label.uppercase(),
+            style = EditorialRowLabel,
             color = if (isActive) AccentBlue else TextSecondary,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         )
     }
 }
@@ -245,8 +246,8 @@ private fun SortOrderChip(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = if (sortOrder == SortOrder.ASCENDING) "Asc" else "Desc",
-                style = MaterialTheme.typography.bodyMedium,
+                text = if (sortOrder == SortOrder.ASCENDING) "ASC" else "DESC",
+                style = EditorialRowLabel,
                 color = TextSecondary
             )
         }
