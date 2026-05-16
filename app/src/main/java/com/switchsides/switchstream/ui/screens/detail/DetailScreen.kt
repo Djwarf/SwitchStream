@@ -439,13 +439,15 @@ private fun DetailContent(
                         FocusableButton(
                             text = playText,
                             onClick = { onPlayClick(playId) },
-                            modifier = playFocusModifier
+                            modifier = playFocusModifier,
+                            stretchContent = false
                         )
                     } else {
                         FocusableButton(
                             text = "Play",
                             onClick = { onPlayClick(item.id.toString()) },
-                            modifier = playFocusModifier
+                            modifier = playFocusModifier,
+                            stretchContent = false
                         )
                     }
                 }
