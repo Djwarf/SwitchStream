@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
@@ -21,9 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -280,17 +284,30 @@ private fun ContinueWatchingRow(
     onItemClick: (String) -> Unit
 ) {
     val dims = LocalDimensions.current
+    val listState = rememberLazyListState()
+    // Track the focused card index and whether the row itself contains focus.
+    // rowHasFocus gates the highlight so non-active rows show no centered card;
+    // focusedIndex lets the highlight reach edge cards (where geometric centering
+    // is impossible because the row can't scroll past its bounds).
+    var focusedIndex by remember { mutableStateOf(-1) }
+    var rowHasFocus by remember { mutableStateOf(false) }
     LazyRow(
+        state = listState,
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier.focusGroup()
+        modifier = Modifier
+            .focusGroup()
+            .onFocusChanged { rowHasFocus = it.hasFocus }
     ) {
-        items(items, key = { it.id }) { item ->
+        itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
             val progress = item.userData?.playedPercentage?.let { it.toFloat() / 100f }
             val subtitle = buildSmartSubtitle(item)
             // Use series image for episodes, own image for movies
             val imageId = item.seriesId ?: item.id
             EditorialCard(
+                modifier = Modifier.onFocusChanged { state ->
+                    if (state.hasFocus) focusedIndex = index
+                },
                 title = item.seriesName ?: item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(imageId),
                 subtitle = subtitle,
@@ -298,7 +315,8 @@ private fun ContinueWatchingRow(
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(item.id.toString()) },
                 cardWidth = 300.dp,
-                imageHeight = 169.dp
+                imageHeight = 169.dp,
+                isCentered = rowHasFocus && index == focusedIndex
             )
         }
     }
@@ -314,12 +332,18 @@ private fun NextUpRow(
     onItemClick: (String) -> Unit
 ) {
     val dims = LocalDimensions.current
+    val listState = rememberLazyListState()
+    var focusedIndex by remember { mutableStateOf(-1) }
+    var rowHasFocus by remember { mutableStateOf(false) }
     LazyRow(
+        state = listState,
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier.focusGroup()
+        modifier = Modifier
+            .focusGroup()
+            .onFocusChanged { rowHasFocus = it.hasFocus }
     ) {
-        items(items, key = { it.id }) { item ->
+        itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
             val season = item.parentIndexNumber
             val episode = item.indexNumber
             val subtitle = if (season != null && episode != null) {
@@ -331,13 +355,17 @@ private fun NextUpRow(
             // Use series image for episodes
             val imageId = item.seriesId ?: item.id
             EditorialCard(
+                modifier = Modifier.onFocusChanged { state ->
+                    if (state.hasFocus) focusedIndex = index
+                },
                 title = item.seriesName ?: item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(imageId),
                 subtitle = subtitle,
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(item.id.toString()) },
                 cardWidth = 260.dp,
-                imageHeight = 146.dp
+                imageHeight = 146.dp,
+                isCentered = rowHasFocus && index == focusedIndex
             )
         }
     }
@@ -353,24 +381,34 @@ private fun MediaRow(
     onItemClick: (String) -> Unit
 ) {
     val dims = LocalDimensions.current
+    val listState = rememberLazyListState()
+    var focusedIndex by remember { mutableStateOf(-1) }
+    var rowHasFocus by remember { mutableStateOf(false) }
     LazyRow(
+        state = listState,
         contentPadding = PaddingValues(horizontal = dims.screenPadding),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier.focusGroup()
+        modifier = Modifier
+            .focusGroup()
+            .onFocusChanged { rowHasFocus = it.hasFocus }
     ) {
-        items(items, key = { it.id }) { item ->
+        itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
             val year = item.productionYear?.toString()
             val unplayed = item.userData?.unplayedItemCount ?: 0
             val badgeText = if (unplayed > 0) "$unplayed NEW" else null
             // For episodes, show the parent series (poster + name) and route to the series detail.
             val targetId = item.seriesId ?: item.id
             EditorialCard(
+                modifier = Modifier.onFocusChanged { state ->
+                    if (state.hasFocus) focusedIndex = index
+                },
                 title = item.seriesName ?: item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(targetId),
                 subtitle = year,
                 typeIcon = itemTypeIcon(item),
                 onClick = { onItemClick(targetId.toString()) },
-                badge = badgeText
+                badge = badgeText,
+                isCentered = rowHasFocus && index == focusedIndex
             )
         }
     }
@@ -431,16 +469,27 @@ private fun OfflineContent(
             SectionHeader(title = "Available Offline")
         }
         item {
+            val listState = rememberLazyListState()
+            var focusedIndex by remember { mutableStateOf(-1) }
+            var rowHasFocus by remember { mutableStateOf(false) }
             LazyRow(
+                state = listState,
                 contentPadding = PaddingValues(horizontal = dims.screenPadding),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier
+                    .focusGroup()
+                    .onFocusChanged { rowHasFocus = it.hasFocus }
             ) {
-                items(items, key = { it.itemId }) { download ->
+                itemsIndexed(items, key = { _, it -> it.itemId }) { index, download ->
                     EditorialCard(
+                        modifier = Modifier.onFocusChanged { state ->
+                            if (state.hasFocus) focusedIndex = index
+                        },
                         title = download.title,
                         imageUrl = download.thumbnailUrl,
                         subtitle = download.seriesName,
-                        onClick = { onItemClick(download.itemId) }
+                        onClick = { onItemClick(download.itemId) },
+                        isCentered = rowHasFocus && index == focusedIndex
                     )
                 }
             }

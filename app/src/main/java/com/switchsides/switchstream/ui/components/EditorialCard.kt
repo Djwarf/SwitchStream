@@ -1,5 +1,8 @@
 package com.switchsides.switchstream.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,36 +59,74 @@ fun EditorialCard(
     typeIcon: ImageVector? = null,
     cardWidth: Dp = 240.dp,
     imageHeight: Dp = 135.dp,
-    badge: String? = null
+    badge: String? = null,
+    // Position-based highlight: the card closest to its row's viewport centre is the
+    // "primary" highlight. The actual D-pad-focused card (if it differs) only gets a
+    // light brightness shift so direction is still readable mid-scroll.
+    isCentered: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val haptic = com.switchsides.switchstream.ui.util.rememberHaptic()
 
-    val imageScale = if (isFocused) 1.06f else 1f
-    val sheenAlpha = if (isFocused) 0.28f else 0f
+    // Primary highlight = current focused-state visual (scale, border, sheen, brightness)
+    // applied to whichever card is at row centre.
+    // Secondary highlight = brightness shift only, applied to focused-but-not-centred card.
+    val imageScale by animateFloatAsState(
+        targetValue = if (isCentered) 1.06f else 1f,
+        animationSpec = tween(160),
+        label = "imageScale"
+    )
+    val sheenAlpha by animateFloatAsState(
+        targetValue = if (isCentered) 0.28f else 0f,
+        animationSpec = tween(160),
+        label = "sheenAlpha"
+    )
+    val cardScale by animateFloatAsState(
+        targetValue = if (isCentered) 1.08f else 1f,
+        animationSpec = tween(160),
+        label = "cardScale"
+    )
+    val resolvedContainer by animateColorAsState(
+        targetValue = when {
+            isCentered -> GlassSurfaceLight
+            isFocused -> GlassSurfaceLight
+            else -> GlassSurface
+        },
+        animationSpec = tween(160),
+        label = "containerColor"
+    )
+    val borderStroke = if (isCentered) {
+        BorderStroke(2.dp, GlassBorderFocus)
+    } else {
+        BorderStroke(1.dp, GlassBorder)
+    }
 
     Card(
         onClick = { haptic(); onClick() },
         modifier = modifier
             .width(cardWidth)
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
             .clickable { haptic(); onClick() }
             .onFocusChanged { isFocused = it.isFocused },
         shape = CardDefaults.shape(shape = RoundedCornerShape(16.dp)),
         colors = CardDefaults.colors(
-            containerColor = GlassSurface,
-            focusedContainerColor = GlassSurfaceLight
+            containerColor = resolvedContainer,
+            focusedContainerColor = resolvedContainer
         ),
         border = CardDefaults.border(
             border = Border(
-                border = BorderStroke(1.dp, GlassBorder),
+                border = borderStroke,
                 shape = RoundedCornerShape(16.dp)
             ),
             focusedBorder = Border(
-                border = BorderStroke(2.dp, GlassBorderFocus),
+                border = borderStroke,
                 shape = RoundedCornerShape(16.dp)
             )
         ),
-        scale = CardDefaults.scale(focusedScale = 1.08f)
+        scale = CardDefaults.scale(focusedScale = 1f)
     ) {
         Column {
             Box(
