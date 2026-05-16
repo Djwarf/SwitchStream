@@ -3,7 +3,11 @@ package com.switchsides.switchstream.ui.screens.player
 import android.content.Context
 import android.media.AudioManager
 import android.view.KeyEvent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.draw.clip
@@ -13,14 +17,17 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
@@ -81,6 +88,8 @@ import com.switchsides.switchstream.ui.theme.PureWhite
 import com.switchsides.switchstream.ui.theme.SurfaceFocus
 import com.switchsides.switchstream.ui.theme.TextPrimary
 import com.switchsides.switchstream.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlayerScreen(
@@ -92,6 +101,7 @@ fun PlayerScreen(
     val bottomRowFocusRequester = remember { FocusRequester() }
     val skipIntroFocusRequester = remember { FocusRequester() }
     val skipCreditsFocusRequester = remember { FocusRequester() }
+    val upNextFocusRequester = remember { FocusRequester() }
     var rootHasFocus by remember { mutableStateOf(true) }
     val context = LocalContext.current
     val activity = context as? MainActivity
@@ -126,6 +136,9 @@ fun PlayerScreen(
     }
     LaunchedEffect(uiState.showSkipCredits) {
         if (uiState.showSkipCredits) runCatching { skipCreditsFocusRequester.requestFocus() }
+    }
+    LaunchedEffect(uiState.showUpNext) {
+        if (uiState.showUpNext && dims.isTV) runCatching { upNextFocusRequester.requestFocus() }
     }
 
     // Push current video aspect ratio into the activity so PiP is sized correctly.
@@ -356,6 +369,17 @@ fun PlayerScreen(
                                 || uiState.showSleepTimerDialog
                                 || uiState.showQualityDialog -> {
                                 viewModel.dismissDialogs()
+                                runCatching { focusRequester.requestFocus() }
+                            }
+                            // Transient overlays come BEFORE the chrome-hide branch so
+                            // BACK consistently means "dismiss the topmost thing"
+                            // rather than swallowing it as a chrome hide.
+                            uiState.showSkipIntro -> {
+                                viewModel.dismissSkipIntro()
+                                runCatching { focusRequester.requestFocus() }
+                            }
+                            uiState.showSkipCredits -> {
+                                viewModel.dismissSkipCredits()
                                 runCatching { focusRequester.requestFocus() }
                             }
                             uiState.showUpNext -> {
@@ -590,11 +614,13 @@ fun PlayerScreen(
                         uiState.currentPosition.toFloat() / uiState.duration.toFloat()
                     } else 0f
                     if (dims.isTV) {
-                        androidx.compose.material3.LinearProgressIndicator(
-                            progress = { progressFraction },
-                            modifier = Modifier.fillMaxWidth().height(4.dp),
-                            color = AccentBlue,
-                            trackColor = Divider
+                        TvSeekBar(
+                            currentPosition = uiState.currentPosition,
+                            duration = uiState.duration,
+                            onSeekDelta = { deltaMs ->
+                                viewModel.seekBy(deltaMs)
+                                viewModel.showControls()
+                            }
                         )
                     } else {
                         androidx.compose.material3.Slider(
@@ -831,10 +857,10 @@ fun PlayerScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = 32.dp, bottom = 120.dp)
             ) {
-                FocusableButton(
+                SkipOverlayButton(
                     text = "Skip Intro",
-                    onClick = { viewModel.skipIntro() },
-                    modifier = Modifier.focusRequester(skipIntroFocusRequester)
+                    focusRequester = skipIntroFocusRequester,
+                    onClick = { viewModel.skipIntro() }
                 )
             }
         }
@@ -846,10 +872,10 @@ fun PlayerScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = 32.dp, bottom = 120.dp)
             ) {
-                FocusableButton(
+                SkipOverlayButton(
                     text = "Skip Credits",
-                    onClick = { viewModel.skipCredits() },
-                    modifier = Modifier.focusRequester(skipCreditsFocusRequester)
+                    focusRequester = skipCreditsFocusRequester,
+                    onClick = { viewModel.skipCredits() }
                 )
             }
         }
@@ -864,7 +890,8 @@ fun PlayerScreen(
                 onPlayNow = { viewModel.playNextEpisode() },
                 onCancel = { viewModel.cancelUpNext() },
                 modifier = Modifier.align(Alignment.BottomEnd),
-                requestFocusOnAppear = dims.isTV
+                requestFocusOnAppear = dims.isTV,
+                playNowFocusRequester = if (dims.isTV) upNextFocusRequester else null
             )
         }
 
@@ -932,6 +959,243 @@ private fun ControlIconButton(
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 6.dp)
                 .size(22.dp)
+        )
+    }
+}
+
+/**
+ * TV-only focusable seek bar with rich scrub feedback. Four layered cues fire
+ * each time the user presses LEFT/RIGHT, so it's obvious which bar is selected,
+ * that it's moving, and how big the step has grown:
+ *
+ * 1. **Beefier focused state** — the track grows 4 → 8 dp, the unfocused dark
+ *    track lifts to a translucent white, and a 22 dp thumb appears with a white
+ *    outer ring so it reads at couch distance.
+ * 2. **Time preview chip** — a monospace chip floats above the thumb showing
+ *    the post-seek time. Follows the thumb horizontally as it moves.
+ * 3. **Pulse on played fill** — each press flashes the played-progress portion
+ *    bright-white, fading over ~280 ms. Gives a "kick" feel to each step.
+ * 4. **Step-size badge** — chip below the thumb shows `±5s`, `±10s`, `±20s`…
+ *    matching the ramp. Stays visible for 500 ms after the last press then
+ *    fades over 200 ms, so the user sees how fast they're scrubbing.
+ *
+ * Step ramp: 5 s base, doubles on each press within 400 ms of the last, capped
+ * at 60 s. Resets to 5 s after a 400 ms idle gap.
+ *
+ * Layout reserves 60 dp tall on TV regardless of focus so the time row below
+ * doesn't jump when focus enters/leaves. Unfocused, only the thin 4 dp track
+ * is drawn — the chip/badge slots stay empty.
+ */
+@Composable
+private fun TvSeekBar(
+    currentPosition: Long,
+    duration: Long,
+    onSeekDelta: (deltaMs: Long) -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    var lastSeekAtMs by remember { mutableStateOf(0L) }
+    var currentStepMs by remember { mutableStateOf(BASE_SEEK_STEP_MS) }
+    var pulseCounter by remember { mutableStateOf(0) }
+    var stepLabel by remember { mutableStateOf("") }
+
+    val pulseAlpha = remember { Animatable(0f) }
+    val badgeAlpha = remember { Animatable(0f) }
+
+    LaunchedEffect(pulseCounter) {
+        if (pulseCounter > 0) {
+            // Snap to peak immediately so rapid presses always re-trigger the
+            // pulse instead of waiting for the previous fade to land.
+            pulseAlpha.snapTo(1f)
+            badgeAlpha.snapTo(1f)
+            launch { pulseAlpha.animateTo(0f, tween(280)) }
+            delay(500)
+            badgeAlpha.animateTo(0f, tween(200))
+        }
+    }
+
+    fun handlePress(direction: Int) {
+        val now = System.currentTimeMillis()
+        currentStepMs = if (now - lastSeekAtMs < SEEK_RAMP_GAP_MS) {
+            (currentStepMs * 2L).coerceAtMost(MAX_SEEK_STEP_MS)
+        } else {
+            BASE_SEEK_STEP_MS
+        }
+        lastSeekAtMs = now
+        val sign = if (direction > 0) "+" else "−"
+        stepLabel = "$sign${currentStepMs / 1000}s"
+        pulseCounter++
+        onSeekDelta(direction * currentStepMs)
+    }
+
+    val fraction = if (duration > 0) {
+        (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val barHeight = if (isFocused) 8.dp else 4.dp
+    val barShape = RoundedCornerShape(50)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.nativeKeyEvent.action != KeyEvent.ACTION_DOWN) return@onPreviewKeyEvent false
+                when (event.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { handlePress(-1); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { handlePress(1); true }
+                    else -> false
+                }
+            }
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val barWidth = maxWidth
+            val thumbDp = 22.dp
+            val thumbCenter = barWidth * fraction
+            val thumbStart = (thumbCenter - thumbDp / 2).coerceIn(0.dp, barWidth - thumbDp)
+
+            // 1. Time preview chip — top, centred above the thumb.
+            if (isFocused) {
+                val chipWidth = 92.dp
+                val chipStart = (thumbCenter - chipWidth / 2).coerceIn(0.dp, barWidth - chipWidth)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = chipStart)
+                        .width(chipWidth)
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(GlassSurface)
+                        .border(1.dp, GlassBorder, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = formatTime(currentPosition),
+                        style = EditorialMono,
+                        color = PureWhite,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // 2. Track (unfilled portion) — vertically centred in the 60dp slot.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth()
+                    .height(barHeight)
+                    .clip(barShape)
+                    .background(if (isFocused) PureWhite.copy(alpha = 0.20f) else Divider)
+            )
+            // 2b. Played-progress fill.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth(fraction)
+                    .height(barHeight)
+                    .clip(barShape)
+                    .background(AccentBlue)
+            )
+            // 3. Pulse overlay on played fill — full fill brightens on press,
+            //    fades over ~280 ms.
+            if (pulseAlpha.value > 0f && isFocused) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxWidth(fraction)
+                        .height(barHeight)
+                        .clip(barShape)
+                        .background(PureWhite.copy(alpha = pulseAlpha.value * 0.45f))
+                )
+            }
+            // 1b. Thumb — white ring around an accent core, scaled bigger than
+            //     the unfocused bar so it pops at couch distance.
+            if (isFocused) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = thumbStart)
+                        .size(thumbDp)
+                        .clip(CircleShape)
+                        .background(PureWhite)
+                        .padding(3.dp)
+                        .clip(CircleShape)
+                        .background(AccentBlue)
+                )
+            }
+            // 4. Step-size badge — bottom, fades after 600 ms idle.
+            if (isFocused && badgeAlpha.value > 0f) {
+                val badgeWidth = 60.dp
+                val badgeStart = (thumbCenter - badgeWidth / 2).coerceIn(0.dp, barWidth - badgeWidth)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .offset(x = badgeStart)
+                        .width(badgeWidth)
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(AccentBlue.copy(alpha = badgeAlpha.value * 0.9f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stepLabel,
+                        style = EditorialMono,
+                        color = PureWhite,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val BASE_SEEK_STEP_MS = 5_000L
+private const val MAX_SEEK_STEP_MS = 60_000L
+private const val SEEK_RAMP_GAP_MS = 400L
+
+/**
+ * Compact glass-style button used by the transient Skip Intro / Skip Credits
+ * overlays. Visually quieter than [FocusableButton] so it doesn't read as core
+ * chrome over the video, and the focused-state white-fill makes the auto-focus
+ * on TV obvious without screaming.
+ */
+@Composable
+private fun SkipOverlayButton(
+    text: String,
+    focusRequester: FocusRequester,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    androidx.tv.material3.Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable { onClick() }
+            .focusable(),
+        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        ),
+        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+            containerColor = GlassSurface,
+            focusedContainerColor = PureWhite.copy(alpha = 0.18f)
+        ),
+        border = androidx.tv.material3.ClickableSurfaceDefaults.border(
+            border = androidx.tv.material3.Border(
+                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            ),
+            focusedBorder = androidx.tv.material3.Border(
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, com.switchsides.switchstream.ui.theme.GlassBorderFocus),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            )
+        )
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isFocused) PureWhite else TextPrimary,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
         )
     }
 }

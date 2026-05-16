@@ -26,8 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.res.Configuration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -161,12 +163,18 @@ fun HeroCarousel(
 
                     Spacer(modifier = Modifier.height(if (dims.isTV) 14.dp else 8.dp))
 
+                    // Portrait phones don't have room for a two-line title without
+                    // squeezing the metadata + CTA row off-screen — clamp to one line
+                    // and let the existing ellipsis handle overflow. Landscape phones
+                    // and tablets keep the editorial two-line layout.
+                    val isPortraitPhone = dims.deviceType == com.switchsides.switchstream.ui.theme.DeviceType.PHONE
+                        && LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
                     Text(
                         text = item.name ?: "",
                         style = if (dims.isTV) MaterialTheme.typography.displayLarge
                                else MaterialTheme.typography.headlineLarge,
                         color = PureWhite,
-                        maxLines = 2,
+                        maxLines = if (isPortraitPhone) 1 else 2,
                         overflow = TextOverflow.Ellipsis
                     )
 

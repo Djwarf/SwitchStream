@@ -17,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,7 +43,12 @@ fun UpNextOverlay(
     onPlayNow: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
-    requestFocusOnAppear: Boolean = false
+    requestFocusOnAppear: Boolean = false,
+    // External focus requester. When supplied (TV), the parent screen drives the
+    // focus request via a LaunchedEffect so we don't race the player chrome's own
+    // focus traversal — that race is what previously caused Play Now to lose the
+    // auto-focus intermittently.
+    playNowFocusRequester: FocusRequester? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -123,7 +130,11 @@ fun UpNextOverlay(
                     text = "Play Now",
                     onClick = onPlayNow,
                     isPrimary = true,
-                    modifier = if (requestFocusOnAppear) Modifier.autoFocusOnAppear() else Modifier
+                    modifier = when {
+                        playNowFocusRequester != null -> Modifier.focusRequester(playNowFocusRequester)
+                        requestFocusOnAppear -> Modifier.autoFocusOnAppear()
+                        else -> Modifier
+                    }
                 )
                 FocusableButton(
                     text = "Cancel",

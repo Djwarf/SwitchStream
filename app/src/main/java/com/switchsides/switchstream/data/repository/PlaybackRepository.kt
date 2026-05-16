@@ -94,8 +94,22 @@ class PlaybackRepository(
     }
 
     /**
-     * Returns intro end timestamp in ms, or null if no intro chapter found.
-     * Checks Jellyfin chapter markers for "Introduction" or "Intro" chapters.
+     * Returns intro/credits timestamps in ms by scanning Jellyfin chapter markers.
+     *
+     * Matching rules — designed so the Skip Intro overlay only ever fires on the
+     * real opening sequence and Skip Credits only on the real closing credits:
+     *
+     * - The intro chapter is the FIRST chapter whose name contains an intro keyword
+     *   AND whose start is within the first 40 % of the episode runtime. Without
+     *   the position guard a mid-episode "Opening of Act 2" would otherwise pose
+     *   as the intro.
+     * - The credits chapter is the LAST chapter whose name contains a credits
+     *   keyword AND whose start is within the last 40 % of the runtime — same
+     *   guard against mid-episode references.
+     * - The keyword sets cover the chapter-name conventions different rippers use:
+     *   "Theme Song", "Title Sequence", "Closing Credits", "Outro", "Tag", etc.
+     *
+     * Returns null when neither side fires so callers can keep the overlays hidden.
      */
     suspend fun getIntroTimestamps(itemId: UUID): Result<IntroTimestamps?> = runCatching {
         val response = apiClient.userLibraryApi.getItem(
@@ -103,28 +117,63 @@ class PlaybackRepository(
             userId = userId
         )
         val chapters = response.content.chapters.orEmpty()
+        if (chapters.isEmpty()) return@runCatching null
 
-        var introEnd: Long? = null
-        var creditsStart: Long? = null
+        // Episode duration in ms; without it we can't anchor the position guards,
+        // so fall back to using the last chapter's start as an approximation.
+        val runtimeMs = (response.content.runTimeTicks ?: 0L) / 10_000
+        val approxDurationMs = if (runtimeMs > 0L) runtimeMs else {
+            (chapters.last().startPositionTicks ?: 0L) / 10_000
+        }
+        if (approxDurationMs <= 0L) return@runCatching null
 
-        for ((index, chapter) in chapters.withIndex()) {
-            val name = chapter.name?.lowercase() ?: ""
-            val startTicks = chapter.startPositionTicks ?: 0
-
-            if (name.contains("intro") || name.contains("introduction") || name.contains("opening")) {
-                // Intro end is the start of the next chapter
-                val nextChapter = chapters.getOrNull(index + 1)
-                introEnd = (nextChapter?.startPositionTicks ?: startTicks)  / 10_000
-            }
-
-            if (name.contains("credit") || name.contains("outro") || name.contains("ending")) {
-                creditsStart = startTicks / 10_000
-            }
+        // Build (name, startMs, endMs) triples — endMs is the next chapter's start
+        // (or approxDurationMs for the last chapter).
+        data class ChapterSpan(val nameLower: String, val startMs: Long, val endMs: Long)
+        val spans = chapters.mapIndexed { i, ch ->
+            val start = (ch.startPositionTicks ?: 0L) / 10_000
+            val end = chapters.getOrNull(i + 1)?.startPositionTicks?.let { it / 10_000 }
+                ?: approxDurationMs
+            ChapterSpan(
+                nameLower = ch.name?.lowercase().orEmpty(),
+                startMs = start,
+                endMs = end
+            )
         }
 
-        if (introEnd != null || creditsStart != null) {
-            IntroTimestamps(introEndMs = introEnd, creditsStartMs = creditsStart)
-        } else null
+        val introKeywords = listOf(
+            "intro", "introduction", "opening", "theme", "theme song",
+            "title", "title sequence", "titles", "opening titles", "main title"
+        )
+        val creditsKeywords = listOf(
+            "credit", "credits", "end credits", "closing", "closing credits",
+            "outro", "ending", "end title", "tag"
+        )
+        fun ChapterSpan.matchesAny(keywords: List<String>): Boolean =
+            keywords.any { nameLower.contains(it) }
+
+        val introWindow = (approxDurationMs * 4 / 10).coerceAtLeast(1L)
+        val creditsThreshold = approxDurationMs * 6 / 10
+
+        // First intro-like chapter within the first 40 % of runtime.
+        val introSpan = spans.firstOrNull {
+            it.startMs <= introWindow && it.matchesAny(introKeywords)
+        }
+        // Last credits-like chapter that starts in the back 40 % of runtime.
+        val creditsSpan = spans.lastOrNull {
+            it.startMs >= creditsThreshold && it.matchesAny(creditsKeywords)
+        }
+
+        val introStartMs = introSpan?.startMs
+        val introEndMs = introSpan?.endMs
+        val creditsStartMs = creditsSpan?.startMs
+
+        if (introStartMs == null && creditsStartMs == null) null
+        else IntroTimestamps(
+            introStartMs = introStartMs,
+            introEndMs = introEndMs,
+            creditsStartMs = creditsStartMs
+        )
     }
 
     suspend fun reportPlaybackStart(itemId: UUID): Result<Unit> = runCatching {
@@ -178,6 +227,7 @@ class PlaybackRepository(
 }
 
 data class IntroTimestamps(
-    val introEndMs: Long?,
-    val creditsStartMs: Long?
+    val introStartMs: Long? = null,
+    val introEndMs: Long? = null,
+    val creditsStartMs: Long? = null
 )

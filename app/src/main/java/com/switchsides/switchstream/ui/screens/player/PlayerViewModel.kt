@@ -233,12 +233,27 @@ class PlayerViewModel(
         _uiState.value = _uiState.value.copy(showSkipIntro = false)
     }
 
+    /**
+     * BACK while the Skip Intro overlay is up should mean "go away" — same semantic
+     * as pressing skip but without the seek. Once dismissed it won't re-appear for
+     * this episode, matching the user's intent of "I saw it, I don't want it."
+     */
+    fun dismissSkipIntro() {
+        introSkipped = true
+        _uiState.value = _uiState.value.copy(showSkipIntro = false)
+    }
+
     fun skipCredits() {
         creditsSkipped = true
         _uiState.value = _uiState.value.copy(showSkipCredits = false)
         if (autoPlayNext && !upNextDismissed && _uiState.value.nextEpisode != null) {
             playNextEpisode()
         }
+    }
+
+    fun dismissSkipCredits() {
+        creditsSkipped = true
+        _uiState.value = _uiState.value.copy(showSkipCredits = false)
     }
 
     private fun loadAdjacentEpisodes() {
@@ -266,12 +281,16 @@ class PlayerViewModel(
                 val currentPos = player.currentPosition.coerceAtLeast(0)
                 val duration = player.duration.coerceAtLeast(0)
 
-                // Skip intro/credits visibility
+                // Skip intro/credits visibility. The intro overlay must only show
+                // while we're actually playing the intro chapter — gating on
+                // introStartMs prevents a false fire during a cold open or recap
+                // that precedes the title sequence.
                 val intro = introTimestamps
+                val introStart = intro?.introStartMs ?: 0L
                 val showIntro = intro?.introEndMs != null
                     && !introSkipped
+                    && currentPos >= introStart
                     && currentPos < intro.introEndMs
-                    && currentPos > 2000 // Show after 2s into playback
                 val showCredits = intro?.creditsStartMs != null
                     && !creditsSkipped
                     && currentPos >= intro.creditsStartMs
@@ -485,6 +504,18 @@ class PlayerViewModel(
 
     fun seekTo(position: Long) {
         player.seekTo(position)
+    }
+
+    /**
+     * Relative seek by [deltaMs] (negative seeks backward). Used by the focused-TV
+     * seek bar where the call site computes a ramped step size, rather than relying
+     * on the fixed seekForwardMs / seekBackMs settings used by the chrome buttons.
+     */
+    fun seekBy(deltaMs: Long) {
+        val target = (player.currentPosition + deltaMs)
+            .coerceAtLeast(0L)
+            .coerceAtMost(player.duration.coerceAtLeast(0L))
+        player.seekTo(target)
     }
 
     fun toggleControls() {
