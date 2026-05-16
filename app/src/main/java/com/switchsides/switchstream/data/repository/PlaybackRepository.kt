@@ -21,23 +21,47 @@ class PlaybackRepository(
     private val userId: UUID
 ) {
 
-    fun getStreamUrl(itemId: UUID, maxHeight: Int = 0): String {
-        if (maxHeight == 0) {
+    /**
+     * Build a playback URL for [itemId]. When [maxHeight] is 0 and no audio/subtitle
+     * override is set we hand the raw file to the client via `static=true` direct-play —
+     * the most efficient path, and the file's multiplexed tracks are available as-is.
+     *
+     * Once the user picks a specific audio or subtitle stream, however, direct-play
+     * can't honour `audioStreamIndex` / `subtitleStreamIndex` (the file is shipped
+     * verbatim), so we fall back to the HLS transcode endpoint and tell Jellyfin which
+     * source streams to bake in. Subtitles use `subtitleMethod=Embed` to burn them into
+     * the video stream — the player has no separate text track in this mode.
+     */
+    fun getStreamUrl(
+        itemId: UUID,
+        maxHeight: Int = 0,
+        audioStreamIndex: Int? = null,
+        subtitleStreamIndex: Int? = null
+    ): String {
+        val hasTrackOverride = audioStreamIndex != null || subtitleStreamIndex != null
+        if (maxHeight == 0 && !hasTrackOverride) {
             return "$serverUrl/Videos/$itemId/stream?static=true&mediaSourceId=$itemId"
         }
+        val targetHeight = if (maxHeight == 0) 1080 else maxHeight
         val bitrate = when {
-            maxHeight >= 1080 -> 8_000_000
-            maxHeight >= 720 -> 3_000_000
-            maxHeight >= 480 -> 1_000_000
+            targetHeight >= 1080 -> 8_000_000
+            targetHeight >= 720 -> 3_000_000
+            targetHeight >= 480 -> 1_000_000
             else -> 800_000
         }
-        return "$serverUrl/Videos/$itemId/master.m3u8" +
-            "?mediaSourceId=$itemId" +
-            "&maxHeight=$maxHeight" +
-            "&maxStreamingBitrate=$bitrate" +
-            "&videoCodec=h264" +
-            "&audioCodec=aac" +
-            "&api_key=${apiClient.accessToken.orEmpty()}"
+        val sb = StringBuilder("$serverUrl/Videos/$itemId/master.m3u8")
+            .append("?mediaSourceId=$itemId")
+            .append("&maxHeight=$targetHeight")
+            .append("&maxStreamingBitrate=$bitrate")
+            .append("&videoCodec=h264")
+            .append("&audioCodec=aac")
+        audioStreamIndex?.let { sb.append("&audioStreamIndex=$it") }
+        subtitleStreamIndex?.let {
+            sb.append("&subtitleStreamIndex=$it")
+            sb.append("&subtitleMethod=Embed")
+        }
+        sb.append("&api_key=${apiClient.accessToken.orEmpty()}")
+        return sb.toString()
     }
 
     fun getHlsUrl(itemId: UUID): String {

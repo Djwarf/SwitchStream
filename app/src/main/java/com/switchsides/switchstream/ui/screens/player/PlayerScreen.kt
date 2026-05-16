@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -216,14 +218,19 @@ fun PlayerScreen(
                 if (!dims.isTV) {
                     // Mobile: double-tap sides to seek, single tap to toggle controls,
                     // vertical swipe on left half = brightness, right half = volume.
+                    // When the child lock is engaged, ALL gestures here no-op — the user
+                    // must long-press the unlock affordance first. The pointerInput keys
+                    // include isLocked so the lambdas refresh when state flips.
                     Modifier
-                        .pointerInput(Unit) {
+                        .pointerInput(uiState.isLocked) {
                             detectTapGestures(
                                 onTap = {
+                                    if (uiState.isLocked) return@detectTapGestures
                                     if (uiState.showControls) viewModel.hideControls()
                                     else viewModel.showControls()
                                 },
                                 onDoubleTap = { offset ->
+                                    if (uiState.isLocked) return@detectTapGestures
                                     val halfWidth = size.width / 2
                                     if (offset.x < halfWidth) {
                                         viewModel.seekBack()
@@ -236,11 +243,12 @@ fun PlayerScreen(
                                 }
                             )
                         }
-                        .pointerInput(Unit) {
+                        .pointerInput(uiState.isLocked) {
                             var startSide: DragSide? = null
                             var fraction = 0f
                             detectVerticalDragGestures(
                                 onDragStart = { offset ->
+                                    if (uiState.isLocked) return@detectVerticalDragGestures
                                     val halfWidth = size.width / 2f
                                     val side = if (offset.x < halfWidth) DragSide.LEFT else DragSide.RIGHT
                                     startSide = side
@@ -250,6 +258,7 @@ fun PlayerScreen(
                                     }
                                 },
                                 onVerticalDrag = { _, dy ->
+                                    if (uiState.isLocked) return@detectVerticalDragGestures
                                     val side = startSide ?: return@detectVerticalDragGestures
                                     fraction = (fraction - dy / size.height).coerceIn(0f, 1f)
                                     when (side) {
@@ -437,13 +446,34 @@ fun PlayerScreen(
         // Hide all overlays in PiP mode — just show video
         if (!isInPip) {
 
-        // Custom overlay controls
-        if (uiState.showControls) {
+        // Custom overlay controls — fully suppressed when the lock is engaged on mobile.
+        if (uiState.showControls && !uiState.isLocked) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(OverlayBlack)
             ) {
+                // Lock affordance (mobile only). Lives at the top-right corner of the
+                // chrome opposite the title. Tap once to engage the child lock.
+                if (!dims.isTV) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(32.dp)
+                            .size(44.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(com.switchsides.switchstream.ui.theme.PureWhite.copy(alpha = 0.12f))
+                            .clickable { viewModel.setLocked(true) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Filled.LockOpen,
+                            contentDescription = "Lock controls",
+                            tint = com.switchsides.switchstream.ui.theme.PureWhite,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
                 // Title at top — eyebrow + serif headline
                 Column(
                     modifier = Modifier
@@ -836,6 +866,36 @@ fun PlayerScreen(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 requestFocusOnAppear = dims.isTV
             )
+        }
+
+        // Unlock affordance — mobile-only. Renders OUTSIDE the chrome's
+        // `showControls` gate so it remains the single visible UI when locked.
+        // The padlock is the only target the user can interact with; everywhere
+        // else on the screen ignores taps until released.
+        if (uiState.isLocked && !dims.isTV) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(32.dp)
+                    .size(44.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.switchsides.switchstream.ui.theme.PureWhite.copy(alpha = 0.18f))
+                    .pointerInput(Unit) {
+                        // Long-press (~1s default) releases the lock. Single taps
+                        // are deliberately ignored so a pocket touch can't undo it.
+                        detectTapGestures(
+                            onLongPress = { viewModel.setLocked(false) }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = "Hold to unlock",
+                    tint = com.switchsides.switchstream.ui.theme.PureWhite,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
 
         } // end if (!isInPip)

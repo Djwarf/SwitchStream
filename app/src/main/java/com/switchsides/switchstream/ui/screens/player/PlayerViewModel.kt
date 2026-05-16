@@ -3,11 +3,9 @@ package com.switchsides.switchstream.ui.screens.player
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -54,7 +52,11 @@ data class PlayerUiState(
     val streamingQuality: Int = 0,
     val showQualityDialog: Boolean = false,
     val showMoreSheet: Boolean = false,
-    val backdropUrl: String? = null
+    val backdropUrl: String? = null,
+    // Mobile-only "child lock". When true the entire chrome is suppressed and
+    // single taps no-op so a pocket touch can't pause/seek; long-press the unlock
+    // affordance to release.
+    val isLocked: Boolean = false
 )
 
 enum class TrackDialogType { AUDIO, SUBTITLE }
@@ -99,6 +101,11 @@ class PlayerViewModel(
     private var seekBackMs: Long = 10_000L
     private var autoPlayNext: Boolean = true
     private var currentStreamingQuality: Int = 0
+    // Jellyfin global stream indices for the currently selected audio / subtitle.
+    // Null means "let the server pick its default" (no override on the URL).
+    // These survive quality/track changes and feed every stream URL build.
+    private var currentAudioStreamIndex: Int? = null
+    private var currentSubtitleStreamIndex: Int? = null
     private var upNextDismissed: Boolean = false
     private var introTimestamps: IntroTimestamps? = null
     private var introSkipped: Boolean = false
@@ -156,7 +163,12 @@ class PlayerViewModel(
     }
 
     private fun loadCurrentItem() {
-        val streamUrl = playbackRepo.getStreamUrl(currentItemId, currentStreamingQuality)
+        val streamUrl = playbackRepo.getStreamUrl(
+            itemId = currentItemId,
+            maxHeight = currentStreamingQuality,
+            audioStreamIndex = currentAudioStreamIndex,
+            subtitleStreamIndex = currentSubtitleStreamIndex
+        )
         val mediaItem = MediaItem.fromUri(streamUrl)
         player.setMediaItem(mediaItem)
         player.prepare()
@@ -306,67 +318,55 @@ class PlayerViewModel(
     fun selectAudioTrack(index: Int) {
         val tracks = _uiState.value.audioTracks
         if (index < 0 || index >= tracks.size) return
-
-        // Close dialog immediately
+        if (index == _uiState.value.selectedAudioIndex) {
+            _uiState.value = _uiState.value.copy(showTrackDialog = null)
+            return
+        }
         _uiState.value = _uiState.value.copy(
             selectedAudioIndex = index,
             showTrackDialog = null
         )
-
-        // Apply track override after UI recomposes
-        val track = tracks[index]
-        viewModelScope.launch {
-            delay(100)
-            for (group in player.currentTracks.groups) {
-                if (group.type == C.TRACK_TYPE_AUDIO) {
-                    val override = TrackSelectionOverride(group.mediaTrackGroup, track.index)
-                    player.trackSelectionParameters = player.trackSelectionParameters
-                        .buildUpon()
-                        .setOverrideForType(override)
-                        .build()
-                    break
-                }
-            }
-        }
+        // Jellyfin's stream index is the global one within the source file (which
+        // interleaves video/audio/subtitle); we hand that to the server, not to
+        // ExoPlayer, because direct-play and HLS-transcode both rely on the URL.
+        currentAudioStreamIndex = tracks[index].index
+        reloadStreamPreservingPosition()
     }
 
     fun selectSubtitleTrack(index: Int) {
-        // Close dialog immediately
         _uiState.value = _uiState.value.copy(
             selectedSubtitleIndex = index,
             showTrackDialog = null
         )
-
-        // Apply after UI recomposes
-        viewModelScope.launch {
-            delay(100)
-            if (index == -1) {
-                player.trackSelectionParameters = player.trackSelectionParameters
-                    .buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                    .build()
-            } else {
-                val tracks = _uiState.value.subtitleTracks
-                if (index < 0 || index >= tracks.size) return@launch
-
-                val track = tracks[index]
-                player.trackSelectionParameters = player.trackSelectionParameters
-                    .buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                    .build()
-
-                for (group in player.currentTracks.groups) {
-                    if (group.type == C.TRACK_TYPE_TEXT) {
-                        val override = TrackSelectionOverride(group.mediaTrackGroup, track.index)
-                        player.trackSelectionParameters = player.trackSelectionParameters
-                            .buildUpon()
-                            .setOverrideForType(override)
-                            .build()
-                        break
-                    }
-                }
-            }
+        currentSubtitleStreamIndex = if (index < 0) {
+            null
+        } else {
+            val tracks = _uiState.value.subtitleTracks
+            tracks.getOrNull(index)?.index
         }
+        reloadStreamPreservingPosition()
+    }
+
+    /**
+     * Rebuild and reload the active stream URL while preserving playback position.
+     * Used whenever the user changes audio, subtitle, or quality — all three need
+     * to round-trip through Jellyfin because the file-level multiplexing or transcode
+     * pipeline determines what the player actually receives.
+     */
+    private fun reloadStreamPreservingPosition() {
+        val resumePosition = player.currentPosition.coerceAtLeast(0L)
+        val streamUrl = playbackRepo.getStreamUrl(
+            itemId = currentItemId,
+            maxHeight = currentStreamingQuality,
+            audioStreamIndex = currentAudioStreamIndex,
+            subtitleStreamIndex = currentSubtitleStreamIndex
+        )
+        player.stop()
+        player.clearMediaItems()
+        player.setMediaItem(MediaItem.fromUri(streamUrl))
+        player.prepare()
+        if (resumePosition > 0) player.seekTo(resumePosition)
+        player.play()
     }
 
     fun setPlaybackSpeed(speed: Float) {
@@ -412,19 +412,12 @@ class PlayerViewModel(
             _uiState.value = _uiState.value.copy(showQualityDialog = false)
             return
         }
-        val resumePosition = player.currentPosition.coerceAtLeast(0L)
         currentStreamingQuality = quality
         _uiState.value = _uiState.value.copy(
             streamingQuality = quality,
             showQualityDialog = false
         )
-        player.stop()
-        player.clearMediaItems()
-        val streamUrl = playbackRepo.getStreamUrl(currentItemId, currentStreamingQuality)
-        player.setMediaItem(MediaItem.fromUri(streamUrl))
-        player.prepare()
-        if (resumePosition > 0) player.seekTo(resumePosition)
-        player.play()
+        reloadStreamPreservingPosition()
     }
 
     fun showSleepTimerDialog() {
@@ -498,6 +491,22 @@ class PlayerViewModel(
         _uiState.value = _uiState.value.copy(showControls = !_uiState.value.showControls)
     }
 
+    fun setLocked(locked: Boolean) {
+        controlsHideJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isLocked = locked,
+            // Locking should also clear any open chrome immediately; unlocking
+            // surfaces the chrome so the user can confirm they're back in control.
+            showControls = !locked,
+            showTrackDialog = null,
+            showSpeedDialog = false,
+            showSleepTimerDialog = false,
+            showQualityDialog = false,
+            showMoreSheet = false
+        )
+        if (!locked) restartHideTimer()
+    }
+
     fun showControls() {
         // Skip the StateFlow emit when controls are already visible — d-pad nav on TV
         // can fire this dozens of times per row traversal and each emit recomposes the
@@ -552,6 +561,10 @@ class PlayerViewModel(
         upNextDismissed = false
         introTimestamps = null
         nextEpisodeTriggered = false
+        // Stream indices are per-file; a new episode has its own track layout, so
+        // start fresh and let the server pick defaults on the first load.
+        currentAudioStreamIndex = null
+        currentSubtitleStreamIndex = null
 
         _uiState.value = _uiState.value.copy(
             title = episode.name ?: "",
