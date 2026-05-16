@@ -308,7 +308,9 @@ private fun ContinueWatchingRow(
                 modifier = Modifier.onFocusChanged { state ->
                     if (state.hasFocus) focusedIndex = index
                 },
-                title = item.seriesName ?: item.name ?: "",
+                // Episode name for TV (BaseItemDto.name on an EPISODE = the episode name);
+                // movie name for films. Subtitle carries S/E + time-left for episodes.
+                title = item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(imageId),
                 subtitle = subtitle,
                 progress = progress,
@@ -358,7 +360,8 @@ private fun NextUpRow(
                 modifier = Modifier.onFocusChanged { state ->
                     if (state.hasFocus) focusedIndex = index
                 },
-                title = item.seriesName ?: item.name ?: "",
+                // Episode name as title; subtitle keeps "Next · S2, E5" for the S/E info.
+                title = item.name ?: "",
                 imageUrl = imageRepo.getThumbUrl(imageId),
                 subtitle = subtitle,
                 typeIcon = itemTypeIcon(item),
