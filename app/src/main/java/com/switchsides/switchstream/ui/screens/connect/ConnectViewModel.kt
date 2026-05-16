@@ -36,18 +36,36 @@ class ConnectViewModel(
     }
 
     fun connect(onSuccess: () -> Unit) {
-        val raw = _uiState.value.serverUrl.trimEnd('/')
+        val raw = _uiState.value.serverUrl.trim()
         if (raw.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Please enter a server address")
             return
         }
 
-        // Auto-prepend protocol: https:// for domains, http:// for IP addresses
-        val url = if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
-            val host = raw.split(":").first().split("/").first()
-            val looksLikeIp = host.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")) || host == "localhost"
-            if (looksLikeIp) "http://$raw" else "https://$raw"
-        } else raw
+        // Auto-prepend protocol: https:// for domains, http:// for IP addresses.
+        // Detect existing protocol case-insensitively and canonicalise the scheme.
+        val lower = raw.lowercase()
+        val withProtocol = when {
+            lower.startsWith("https://") -> "https://" + raw.substring("https://".length)
+            lower.startsWith("http://") -> "http://" + raw.substring("http://".length)
+            else -> {
+                val host = raw.split(":").first().split("/").first()
+                val looksLikeIp = host.matches(Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")) || host == "localhost"
+                if (looksLikeIp) "http://$raw" else "https://$raw"
+            }
+        }
+
+        val hostPart = withProtocol
+            .substringAfter("://")
+            .trimEnd('/')
+            .substringBefore('/')
+            .substringBefore(':')
+        if (hostPart.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "Please enter a server address")
+            return
+        }
+
+        val url = withProtocol.trimEnd('/')
 
         _uiState.value = _uiState.value.copy(isLoading = true, error = null, serverUrl = url)
 

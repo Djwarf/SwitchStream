@@ -1,10 +1,5 @@
 package com.switchsides.switchstream.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,15 +37,9 @@ fun ConnectivityBanner(
         wasOffline = !isOnline
     }
 
-    // Offline banner
-    AnimatedVisibility(
-        visible = !isOnline,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
-        modifier = modifier
-    ) {
+    if (!isOnline) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .background(ErrorRed)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -64,15 +53,9 @@ fun ConnectivityBanner(
         }
     }
 
-    // Reconnected banner
-    AnimatedVisibility(
-        visible = showReconnected,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
-        modifier = modifier
-    ) {
+    if (showReconnected) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .background(SuccessGreen)
                 .padding(horizontal = 16.dp, vertical = 8.dp),

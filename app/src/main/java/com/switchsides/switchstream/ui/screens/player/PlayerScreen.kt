@@ -3,9 +3,6 @@ package com.switchsides.switchstream.ui.screens.player
 import android.content.Context
 import android.media.AudioManager
 import android.view.KeyEvent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -26,13 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.FitScreen
-import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
@@ -59,7 +53,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.switchsides.switchstream.MainActivity
-import com.switchsides.switchstream.ui.components.ResumeDialog
 import com.switchsides.switchstream.ui.theme.LocalDimensions
 import com.switchsides.switchstream.ui.theme.DeviceType
 import androidx.media3.ui.PlayerView
@@ -67,6 +60,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.switchsides.switchstream.ui.components.FocusableButton
 import com.switchsides.switchstream.ui.components.PlaybackSpeedSelector
+import com.switchsides.switchstream.ui.components.PlayerMoreSheet
 import com.switchsides.switchstream.ui.components.QualitySelector
 import com.switchsides.switchstream.ui.components.SleepTimerChoice
 import com.switchsides.switchstream.ui.components.SleepTimerSelector
@@ -109,7 +103,7 @@ fun PlayerScreen(
         || uiState.showSpeedDialog
         || uiState.showSleepTimerDialog
         || uiState.showQualityDialog
-        || uiState.showResumePrompt
+        || uiState.showMoreSheet
         || uiState.showUpNext
 
     // Claim focus on entry so d-pad reaches our key handler immediately.
@@ -219,12 +213,11 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(androidx.compose.ui.graphics.Color.Black)
             .then(
-                if (!dims.isTV && !uiState.showResumePrompt) {
+                if (!dims.isTV) {
                     // Mobile: double-tap sides to seek, single tap to toggle controls,
                     // vertical swipe on left half = brightness, right half = volume.
-                    // Disabled when resume dialog is showing so dialog buttons are tappable.
                     Modifier
-                        .pointerInput(uiState.showResumePrompt) {
+                        .pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = {
                                     if (uiState.showControls) viewModel.hideControls()
@@ -445,11 +438,7 @@ fun PlayerScreen(
         if (!isInPip) {
 
         // Custom overlay controls
-        AnimatedVisibility(
-            visible = uiState.showControls,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
+        if (uiState.showControls) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -554,62 +543,11 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        // Audio button
+                        // More — opens a sheet with audio track, speed, quality, sleep timer, aspect.
                         ControlIconButton(
-                            icon = Icons.Filled.Audiotrack,
-                            contentDescription = "Audio Track",
-                            onClick = { viewModel.showAudioDialog() }
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Speed indicator
-                        ControlTextButton(
-                            text = "${uiState.playbackSpeed}x",
-                            onClick = { viewModel.showSpeedDialog() }
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Sleep timer
-                        ControlIconButton(
-                            icon = Icons.Filled.Bedtime,
-                            contentDescription = "Sleep Timer",
-                            onClick = { viewModel.showSleepTimerDialog() }
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Quality
-                        ControlTextButton(
-                            text = qualityLabel(uiState.streamingQuality),
-                            onClick = { viewModel.showQualityDialog() }
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Scale/aspect ratio toggle
-                        ControlIconButton(
-                            icon = when (resizeMode) {
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> Icons.Filled.FitScreen
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> Icons.Filled.Fullscreen
-                                else -> Icons.Filled.AspectRatio
-                            },
-                            contentDescription = when (resizeMode) {
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> "Fit"
-                                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
-                                else -> "Zoom"
-                            },
-                            onClick = {
-                                resizeMode = when (resizeMode) {
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT ->
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL ->
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                    else ->
-                                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                }
-                            }
+                            icon = Icons.Filled.MoreHoriz,
+                            contentDescription = "More",
+                            onClick = { viewModel.showMoreSheet() }
                         )
 
                         Spacer(modifier = Modifier.weight(1f))
@@ -672,14 +610,10 @@ fun PlayerScreen(
         }
 
         // Seek indicator
-        AnimatedVisibility(
-            visible = seekIndicator != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
+        if (seekIndicator != null) {
             Box(
                 modifier = Modifier
+                    .align(Alignment.Center)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                     .background(com.switchsides.switchstream.ui.theme.PureBlack.copy(alpha = 0.7f))
                     .padding(horizontal = 24.dp, vertical = 12.dp)
@@ -693,41 +627,34 @@ fun PlayerScreen(
         }
 
         // Brightness/volume indicator
-        AnimatedVisibility(
-            visible = verticalIndicator != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            val indicator = verticalIndicator
-            if (indicator != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                        .background(com.switchsides.switchstream.ui.theme.PureBlack.copy(alpha = 0.7f))
-                        .padding(horizontal = 24.dp, vertical = 14.dp)
-                ) {
-                    androidx.compose.material3.Icon(
-                        imageVector = if (indicator.kind == VerticalAdjust.Kind.BRIGHTNESS)
-                Icons.Filled.BrightnessMedium else Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = null,
-                        tint = com.switchsides.switchstream.ui.theme.PureWhite,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    androidx.compose.material3.LinearProgressIndicator(
-                        progress = { indicator.fraction },
-                        modifier = Modifier.width(160.dp),
-                        color = AccentBlue,
-                        trackColor = com.switchsides.switchstream.ui.theme.PureWhite.copy(alpha = 0.25f)
-                    )
-                    Text(
-                        text = "${(indicator.fraction * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = com.switchsides.switchstream.ui.theme.PureWhite
-                    )
-                }
+        verticalIndicator?.let { indicator ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .background(com.switchsides.switchstream.ui.theme.PureBlack.copy(alpha = 0.7f))
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = if (indicator.kind == VerticalAdjust.Kind.BRIGHTNESS)
+                        Icons.Filled.BrightnessMedium else Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = null,
+                    tint = com.switchsides.switchstream.ui.theme.PureWhite,
+                    modifier = Modifier.size(22.dp)
+                )
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { indicator.fraction },
+                    modifier = Modifier.width(160.dp),
+                    color = AccentBlue,
+                    trackColor = com.switchsides.switchstream.ui.theme.PureWhite.copy(alpha = 0.25f)
+                )
+                Text(
+                    text = "${(indicator.fraction * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = com.switchsides.switchstream.ui.theme.PureWhite
+                )
             }
         }
 
@@ -794,6 +721,52 @@ fun PlayerScreen(
             )
         }
 
+        // Player options "More" sheet — consolidates audio/speed/quality/sleep/aspect.
+        if (uiState.showMoreSheet) {
+            val selectedAudio = uiState.audioTracks.getOrNull(uiState.selectedAudioIndex)
+            val audioTrackLabel = selectedAudio?.let { track ->
+                track.title.ifEmpty { track.language ?: "Track ${uiState.selectedAudioIndex + 1}" }
+            } ?: "Default"
+
+            val sleepTimerLabel = when {
+                uiState.sleepTimerEndOfEpisode -> "End of episode"
+                uiState.sleepTimerRemainingMs > 0 -> {
+                    val minutes = ((uiState.sleepTimerRemainingMs + 59_999L) / 60_000L).toInt()
+                    "$minutes min"
+                }
+                else -> "Off"
+            }
+
+            val aspectLabel = when (resizeMode) {
+                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT -> "Fit"
+                androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
+                else -> "Zoom"
+            }
+
+            PlayerMoreSheet(
+                audioTrackLabel = audioTrackLabel,
+                speedLabel = "${uiState.playbackSpeed}x",
+                qualityLabel = qualityLabel(uiState.streamingQuality),
+                sleepTimerLabel = sleepTimerLabel,
+                aspectLabel = aspectLabel,
+                onAudioClick = { viewModel.showAudioDialog() },
+                onSpeedClick = { viewModel.showSpeedDialog() },
+                onQualityClick = { viewModel.showQualityDialog() },
+                onSleepTimerClick = { viewModel.showSleepTimerDialog() },
+                onAspectClick = {
+                    resizeMode = when (resizeMode) {
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT ->
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL ->
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        else ->
+                            androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                },
+                onDismiss = { viewModel.dismissDialogs() }
+            )
+        }
+
         // Sleep timer remaining badge
         if (uiState.sleepTimerRemainingMs > 0 || uiState.sleepTimerEndOfEpisode) {
             Row(
@@ -822,35 +795,33 @@ fun PlayerScreen(
         }
 
         // Skip Intro button
-        AnimatedVisibility(
-            visible = uiState.showSkipIntro,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 32.dp, bottom = 120.dp)
-        ) {
-            FocusableButton(
-                text = "Skip Intro",
-                onClick = { viewModel.skipIntro() },
-                modifier = Modifier.focusRequester(skipIntroFocusRequester)
-            )
+        if (uiState.showSkipIntro) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 32.dp, bottom = 120.dp)
+            ) {
+                FocusableButton(
+                    text = "Skip Intro",
+                    onClick = { viewModel.skipIntro() },
+                    modifier = Modifier.focusRequester(skipIntroFocusRequester)
+                )
+            }
         }
 
         // Skip Credits button
-        AnimatedVisibility(
-            visible = uiState.showSkipCredits,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 32.dp, bottom = 120.dp)
-        ) {
-            FocusableButton(
-                text = "Skip Credits",
-                onClick = { viewModel.skipCredits() },
-                modifier = Modifier.focusRequester(skipCreditsFocusRequester)
-            )
+        if (uiState.showSkipCredits) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 32.dp, bottom = 120.dp)
+            ) {
+                FocusableButton(
+                    text = "Skip Credits",
+                    onClick = { viewModel.skipCredits() },
+                    modifier = Modifier.focusRequester(skipCreditsFocusRequester)
+                )
+            }
         }
 
         // Up Next overlay
@@ -864,40 +835,6 @@ fun PlayerScreen(
                 onCancel = { viewModel.cancelUpNext() },
                 modifier = Modifier.align(Alignment.BottomEnd),
                 requestFocusOnAppear = dims.isTV
-            )
-        }
-
-        // Resume prompt
-        if (uiState.showResumePrompt) {
-            ResumeDialog(
-                positionMs = uiState.resumePositionMs,
-                onResume = { viewModel.resumeFromPosition() },
-                onStartOver = { viewModel.startFromBeginning() },
-                requestFocusOnAppear = dims.isTV
-            )
-        }
-
-        // "Now Playing" launch intro — 900ms film-leader overlay shown on entry and
-        // on episode transitions. Keyed to title so it replays when the ViewModel
-        // loads a new episode. Suppressed if the resume prompt takes over.
-        var introVisible by remember(uiState.title) { mutableStateOf(true) }
-        LaunchedEffect(uiState.title) {
-            introVisible = true
-            kotlinx.coroutines.delay(900)
-            introVisible = false
-        }
-        LaunchedEffect(uiState.showResumePrompt) {
-            if (uiState.showResumePrompt) introVisible = false
-        }
-        AnimatedVisibility(
-            visible = introVisible && !uiState.showResumePrompt,
-            enter = fadeIn(androidx.compose.animation.core.tween(200)),
-            exit = fadeOut(androidx.compose.animation.core.tween(400)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            com.switchsides.switchstream.ui.components.NowPlayingIntro(
-                title = uiState.title,
-                backdropUrl = uiState.backdropUrl
             )
         }
 
@@ -935,36 +872,6 @@ private fun ControlIconButton(
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 6.dp)
                 .size(22.dp)
-        )
-    }
-}
-
-@Composable
-private fun ControlTextButton(
-    text: String,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    androidx.tv.material3.Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .scale(if (isFocused) 1.1f else 1f)
-            .onFocusChanged { isFocused = it.isFocused }
-            .clickable { onClick() }
-            .focusable(),
-        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-        ),
-        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
-            containerColor = GlassSurface,
-            focusedContainerColor = PureWhite
-        )
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (isFocused) PureBlack else TextPrimary,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         )
     }
 }

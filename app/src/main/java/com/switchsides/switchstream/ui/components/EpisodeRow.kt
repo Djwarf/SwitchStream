@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,12 +59,8 @@ fun EpisodeRow(
     onDownloadClick: (() -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isFocused) 1.03f else 1f, label = "episode_scale")
-    val accentWidth by animateFloatAsState(
-        targetValue = if (isFocused) 3f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(220),
-        label = "episode_accent_width"
-    )
+    val scale = if (isFocused) 1.03f else 1f
+    val accentWidth = if (isFocused) 3.dp else 0.dp
 
     val episodeNumber = episode.indexNumber
     val runtimeMinutes = episode.runTimeTicks?.let { it / 600_000_000 }
@@ -82,7 +77,7 @@ fun EpisodeRow(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(accentWidth.dp)
+                .width(accentWidth)
                 .clip(RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
                 .background(AccentBlue)
         )

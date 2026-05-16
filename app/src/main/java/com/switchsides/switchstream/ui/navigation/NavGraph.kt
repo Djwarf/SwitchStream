@@ -1,10 +1,8 @@
 package com.switchsides.switchstream.ui.navigation
 
 import android.net.Uri
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -48,7 +46,6 @@ import com.switchsides.switchstream.ui.screens.settings.SettingsViewModel
 import org.jellyfin.sdk.model.api.BaseItemDto
 import java.util.UUID
 
-@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
     val navController = rememberNavController()
@@ -63,20 +60,13 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         }
     }
 
-    val defaultEnter = fadeIn(androidx.compose.animation.core.tween(150)) +
-            slideInHorizontally(androidx.compose.animation.core.tween(150)) { it / 4 }
-    val defaultExit = fadeOut(androidx.compose.animation.core.tween(100)) +
-            slideOutHorizontally(androidx.compose.animation.core.tween(100)) { -it / 4 }
-    val defaultPopEnter = fadeIn(androidx.compose.animation.core.tween(150)) +
-            slideInHorizontally(androidx.compose.animation.core.tween(150)) { -it / 4 }
-    val defaultPopExit = fadeOut(androidx.compose.animation.core.tween(100)) +
-            slideOutHorizontally(androidx.compose.animation.core.tween(100)) { it / 4 }
-
-    androidx.compose.animation.SharedTransitionLayout {
-        val sharedScope = this
-        NavHost(
+    NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = startDestination,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
     ) {
         // Auth screens (no drawer)
         composable(Screen.Connect.route) {
@@ -118,14 +108,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         }
 
         // Main screens (with drawer)
-        composable(
-            Screen.Home.route,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
-        ) {
-            val animatedScope = this
+        composable(Screen.Home.route) {
             val vm = viewModel {
                 HomeViewModel(
                     container.createLibraryRepository(),
@@ -138,28 +121,23 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             }
             val uiState by vm.uiState.collectAsState()
 
-            androidx.compose.runtime.CompositionLocalProvider(
-                com.switchsides.switchstream.ui.util.LocalSharedTransitionScope provides sharedScope,
-                com.switchsides.switchstream.ui.util.LocalAnimatedContentScope provides animatedScope
+            DrawerWrappedScreen(
+                currentRoute = Screen.Home.route,
+                libraries = uiState.libraries,
+                navController = navController,
+                container = container
             ) {
-                DrawerWrappedScreen(
-                    currentRoute = Screen.Home.route,
-                    libraries = uiState.libraries,
-                    navController = navController,
-                    container = container
-                ) {
-                    HomeScreen(
-                        viewModel = vm,
-                        onItemClick = { itemId ->
-                            navController.navigate(Screen.Detail.createRoute(itemId))
-                        },
-                        onLibraryClick = { libraryId, libraryName ->
-                            navController.navigate(
-                                Screen.Library.createRoute(libraryId, Uri.encode(libraryName))
-                            )
-                        }
-                    )
-                }
+                HomeScreen(
+                    viewModel = vm,
+                    onItemClick = { itemId ->
+                        navController.navigate(Screen.Detail.createRoute(itemId))
+                    },
+                    onLibraryClick = { libraryId, libraryName ->
+                        navController.navigate(
+                            Screen.Library.createRoute(libraryId, Uri.encode(libraryName))
+                        )
+                    }
+                )
             }
         }
 
@@ -168,11 +146,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             arguments = listOf(
                 navArgument("libraryId") { type = NavType.StringType },
                 navArgument("libraryName") { type = NavType.StringType }
-            ),
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
+            )
         ) { backStackEntry ->
             val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
             val libraryName = backStackEntry.arguments?.getString("libraryName") ?: ""
@@ -204,13 +178,8 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
 
         composable(
             route = Screen.Detail.route,
-            arguments = listOf(navArgument("itemId") { type = NavType.StringType }),
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
+            arguments = listOf(navArgument("itemId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val animatedScope = this
             val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
             val vm = viewModel {
                 DetailViewModel(
@@ -223,40 +192,35 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     settingsManager = container.settingsManager
                 )
             }
-            androidx.compose.runtime.CompositionLocalProvider(
-                com.switchsides.switchstream.ui.util.LocalSharedTransitionScope provides sharedScope,
-                com.switchsides.switchstream.ui.util.LocalAnimatedContentScope provides animatedScope
+            DrawerWrappedScreen(
+                currentRoute = Screen.Detail.route,
+                libraries = emptyList(),
+                navController = navController,
+                container = container
             ) {
-                DrawerWrappedScreen(
-                    currentRoute = Screen.Detail.route,
-                    libraries = emptyList(),
-                    navController = navController,
-                    container = container
-                ) {
-                    DetailScreen(
-                        viewModel = vm,
-                        onPlayClick = { id ->
-                            val title = Uri.encode(vm.uiState.value.item?.name ?: "")
-                            val seriesId = if (vm.uiState.value.isSeries) {
-                                vm.uiState.value.item?.id?.toString() ?: ""
-                            } else ""
-                            navController.navigate(Screen.Player.createRoute(id, title, seriesId))
-                        },
-                        onPersonClick = { personId, personName ->
-                            if (personId.isNotEmpty()) {
-                                navController.navigate(
-                                    Screen.Person.createRoute(personId, Uri.encode(personName))
-                                )
-                            }
-                        },
-                        onGenreClick = { genre ->
-                            navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
-                        },
-                        onSeriesClick = { seriesId ->
-                            navController.navigate(Screen.Detail.createRoute(seriesId))
+                DetailScreen(
+                    viewModel = vm,
+                    onPlayClick = { id ->
+                        val title = Uri.encode(vm.uiState.value.item?.name ?: "")
+                        val seriesId = if (vm.uiState.value.isSeries) {
+                            vm.uiState.value.item?.id?.toString() ?: ""
+                        } else ""
+                        navController.navigate(Screen.Player.createRoute(id, title, seriesId))
+                    },
+                    onPersonClick = { personId, personName ->
+                        if (personId.isNotEmpty()) {
+                            navController.navigate(
+                                Screen.Person.createRoute(personId, Uri.encode(personName))
+                            )
                         }
-                    )
-                }
+                    },
+                    onGenreClick = { genre ->
+                        navController.navigate(Screen.Search.createRoute(Uri.encode(genre)))
+                    },
+                    onSeriesClick = { seriesId ->
+                        navController.navigate(Screen.Detail.createRoute(seriesId))
+                    }
+                )
             }
         }
 
@@ -266,11 +230,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             arguments = listOf(
                 navArgument("libraryId") { type = NavType.StringType },
                 navArgument("genreName") { type = NavType.StringType }
-            ),
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
+            )
         ) { backStackEntry ->
             val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
             val vm = viewModel {
@@ -294,11 +254,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             arguments = listOf(
                 navArgument("personId") { type = NavType.StringType },
                 navArgument("personName") { type = NavType.StringType }
-            ),
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
+            )
         ) { backStackEntry ->
             val personId = backStackEntry.arguments?.getString("personId") ?: ""
             val personName = backStackEntry.arguments?.getString("personName") ?: ""
@@ -326,11 +282,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     defaultValue = ""
                     nullable = true
                 }
-            ),
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
+            )
         ) { backStackEntry ->
             val initialQuery = backStackEntry.arguments?.getString("query") ?: ""
             val vm = viewModel {
@@ -357,13 +309,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         }
 
         // Downloads
-        composable(
-            route = Screen.Downloads.route,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
-        ) {
+        composable(route = Screen.Downloads.route) {
             val vm = viewModel {
                 com.switchsides.switchstream.ui.screens.downloads.DownloadsViewModel(
                     container.downloadRepository,
@@ -387,13 +333,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             }
         }
 
-        composable(
-            route = Screen.Settings.route,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
-        ) {
+        composable(route = Screen.Settings.route) {
             val vm = viewModel {
                 SettingsViewModel(container.sessionManager, container.settingsManager, container)
             }
@@ -421,13 +361,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
         }
 
         // Users screen (profile switcher)
-        composable(
-            route = Screen.Users.route,
-            enterTransition = { fadeIn(androidx.compose.animation.core.tween(300)) },
-            exitTransition = { fadeOut(androidx.compose.animation.core.tween(200)) },
-            popEnterTransition = { fadeIn(androidx.compose.animation.core.tween(300)) },
-            popExitTransition = { fadeOut(androidx.compose.animation.core.tween(200)) }
-        ) {
+        composable(route = Screen.Users.route) {
             val scope = rememberCoroutineScope()
             val sessionData by container.sessionManager.session.collectAsState(initial = null)
             var cachedUsers by remember { mutableStateOf<List<com.switchsides.switchstream.data.CachedUser>>(emptyList()) }
@@ -482,13 +416,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             )
         }
 
-        composable(
-            route = Screen.History.route,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
-        ) {
+        composable(route = Screen.History.route) {
             val vm = viewModel {
                 HistoryViewModel(container.createLibraryRepository(), container.createImageRepository())
             }
@@ -507,13 +435,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             }
         }
 
-        composable(
-            route = Screen.Favorites.route,
-            enterTransition = { defaultEnter },
-            exitTransition = { defaultExit },
-            popEnterTransition = { defaultPopEnter },
-            popExitTransition = { defaultPopExit }
-        ) {
+        composable(route = Screen.Favorites.route) {
             val vm = viewModel {
                 FavoritesViewModel(container.createLibraryRepository(), container.createImageRepository())
             }
@@ -532,7 +454,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             }
         }
 
-        // Player (no drawer, cinematic transition)
+        // Player (no drawer)
         composable(
             route = Screen.Player.route,
             arguments = listOf(
@@ -543,11 +465,7 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
                     defaultValue = ""
                     nullable = true
                 }
-            ),
-            enterTransition = { fadeIn(androidx.compose.animation.core.tween(400)) },
-            exitTransition = { fadeOut(androidx.compose.animation.core.tween(300)) },
-            popEnterTransition = { fadeIn(androidx.compose.animation.core.tween(300)) },
-            popExitTransition = { fadeOut(androidx.compose.animation.core.tween(300)) }
+            )
         ) { backStackEntry ->
             val itemId = backStackEntry.arguments?.getString("itemId") ?: ""
             val title = backStackEntry.arguments?.getString("title") ?: ""
@@ -585,7 +503,6 @@ fun NavGraph(startDestination: String, deepLinkRoute: String? = null) {
             )
         }
     }
-    } // end SharedTransitionLayout
 }
 
 @Composable

@@ -63,6 +63,7 @@ import com.switchsides.switchstream.ui.components.PersonCard
 import com.switchsides.switchstream.ui.components.SeasonSelector
 import com.switchsides.switchstream.ui.components.SectionHeader
 import com.switchsides.switchstream.ui.theme.LocalDimensions
+import com.switchsides.switchstream.ui.util.autoFocusOnAppear
 import com.switchsides.switchstream.ui.theme.AccentBlue
 import com.switchsides.switchstream.ui.theme.EditorialMono
 import com.switchsides.switchstream.ui.theme.EditorialRowLabel
@@ -231,7 +232,6 @@ fun DetailScreen(
     }
 }
 
-@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 private fun DetailContent(
     uiState: DetailUiState,
@@ -258,28 +258,12 @@ private fun DetailContent(
         }
         val backdropHeight = dims.backdropHeight + 200.dp
 
-        val sharedScope = com.switchsides.switchstream.ui.util.LocalSharedTransitionScope.current
-        val animatedScope = com.switchsides.switchstream.ui.util.LocalAnimatedContentScope.current
-        @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
-        val sharedBoundsModifier = if (sharedScope != null && animatedScope != null) {
-            with(sharedScope) {
-                Modifier.sharedBounds(
-                    sharedContentState = rememberSharedContentState(
-                        key = com.switchsides.switchstream.ui.util.sharedItemKey(item.id)
-                    ),
-                    animatedVisibilityScope = animatedScope,
-                    resizeMode = androidx.compose.animation.SharedTransitionScope.ResizeMode.ScaleToBounds()
-                )
-            }
-        } else Modifier
-
         coil.compose.AsyncImage(
             model = backdropUrl,
             contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(backdropHeight)
-                .then(sharedBoundsModifier)
                 .then(
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                         Modifier.blur(radius = 48.dp)
@@ -436,7 +420,8 @@ private fun DetailContent(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Play button
+                    // Play button — auto-focus on TV so the user can press OK immediately.
+                    val playFocusModifier = if (dims.isTV) Modifier.autoFocusOnAppear() else Modifier
                     if (uiState.isSeries) {
                         val nextUp = uiState.nextUpEpisode
                         val playText = if (nextUp != null) {
@@ -453,12 +438,14 @@ private fun DetailContent(
                         }
                         FocusableButton(
                             text = playText,
-                            onClick = { onPlayClick(playId) }
+                            onClick = { onPlayClick(playId) },
+                            modifier = playFocusModifier
                         )
                     } else {
                         FocusableButton(
                             text = "Play",
-                            onClick = { onPlayClick(item.id.toString()) }
+                            onClick = { onPlayClick(item.id.toString()) },
+                            modifier = playFocusModifier
                         )
                     }
                 }

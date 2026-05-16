@@ -1,8 +1,5 @@
 package com.switchsides.switchstream.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -193,18 +190,6 @@ private fun TopNavBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Wordmark — sans-caps paired with a serif italic for editorial character.
-        // A red underline paints in once on first launch, like a brush stroke, giving
-        // the brand a beat of personality before the nav settles into the chrome.
-        var underlineVisible by remember { mutableStateOf(false) }
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            kotlinx.coroutines.delay(260)
-            underlineVisible = true
-        }
-        val underlineWidth by animateFloatAsState(
-            targetValue = if (underlineVisible) 118f else 0f,
-            animationSpec = tween(durationMillis = 720, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            label = "wordmark_line"
-        )
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -228,7 +213,7 @@ private fun TopNavBar(
             Spacer(modifier = Modifier.height(3.dp))
             Box(
                 modifier = Modifier
-                    .width(underlineWidth.dp)
+                    .width(118.dp)
                     .height(1.5.dp)
                     .background(AccentBlue)
             )
@@ -275,26 +260,17 @@ private fun NavPill(
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        if (isFocused) 1.05f else 1f,
-        animationSpec = tween(150)
-    )
-    val bgColor by animateColorAsState(
-        when {
-            isSelected -> AccentBlue.copy(alpha = 0.2f)
-            isFocused -> PureWhite.copy(alpha = 0.1f)
-            else -> Color.Transparent
-        },
-        animationSpec = tween(200)
-    )
-    val borderColor by animateColorAsState(
-        when {
-            isFocused -> GlassBorderFocus
-            isSelected -> AccentBlue.copy(alpha = 0.4f)
-            else -> Color.Transparent
-        },
-        animationSpec = tween(200)
-    )
+    val scale = if (isFocused) 1.05f else 1f
+    val bgColor = when {
+        isSelected -> AccentBlue.copy(alpha = 0.2f)
+        isFocused -> PureWhite.copy(alpha = 0.1f)
+        else -> Color.Transparent
+    }
+    val borderColor = when {
+        isFocused -> GlassBorderFocus
+        isSelected -> AccentBlue.copy(alpha = 0.4f)
+        else -> Color.Transparent
+    }
 
     Surface(
         onClick = onClick,
@@ -356,18 +332,12 @@ private fun ProfileButton(
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val ringColor by animateColorAsState(
-        when {
-            isFocused -> AccentBlue
-            isSelected -> AccentBlue.copy(alpha = 0.7f)
-            else -> GlassBorder
-        },
-        animationSpec = tween(200)
-    )
-    val scale by animateFloatAsState(
-        if (isFocused) 1.1f else 1f,
-        animationSpec = tween(150)
-    )
+    val ringColor = when {
+        isFocused -> AccentBlue
+        isSelected -> AccentBlue.copy(alpha = 0.7f)
+        else -> GlassBorder
+    }
+    val scale = if (isFocused) 1.1f else 1f
 
     Surface(
         onClick = onClick,
@@ -511,24 +481,15 @@ private fun MobileNavPill(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val bgColor by animateColorAsState(
-        when {
-            isSelected -> AccentBlue.copy(alpha = 0.2f)
-            else -> Color.Transparent
-        },
-        animationSpec = tween(200)
-    )
-    val borderColor by animateColorAsState(
-        when {
-            isSelected -> AccentBlue.copy(alpha = 0.4f)
-            else -> Color.Transparent
-        },
-        animationSpec = tween(200)
-    )
-    val textColor by animateColorAsState(
-        if (isSelected) PureWhite else TextSecondary,
-        animationSpec = tween(200)
-    )
+    val bgColor = when {
+        isSelected -> AccentBlue.copy(alpha = 0.2f)
+        else -> Color.Transparent
+    }
+    val borderColor = when {
+        isSelected -> AccentBlue.copy(alpha = 0.4f)
+        else -> Color.Transparent
+    }
+    val textColor = if (isSelected) PureWhite else TextSecondary
 
     Box(
         modifier = Modifier

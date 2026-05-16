@@ -48,13 +48,12 @@ data class PlayerUiState(
     val upNextCountdown: Int = 30,
     val showSkipIntro: Boolean = false,
     val showSkipCredits: Boolean = false,
-    val showResumePrompt: Boolean = false,
-    val resumePositionMs: Long = 0L,
     val sleepTimerRemainingMs: Long = 0L,
     val sleepTimerEndOfEpisode: Boolean = false,
     val showSleepTimerDialog: Boolean = false,
     val streamingQuality: Int = 0,
     val showQualityDialog: Boolean = false,
+    val showMoreSheet: Boolean = false,
     val backdropUrl: String? = null
 )
 
@@ -162,25 +161,17 @@ class PlayerViewModel(
         player.setMediaItem(mediaItem)
         player.prepare()
 
-        // Check for resume position — always start playback, show prompt as overlay
+        // Always auto-resume from saved position (skip if effectively complete: past 90% of runtime).
         viewModelScope.launch {
             libraryRepo.getItemDetail(currentItemId).onSuccess { item ->
                 val positionTicks = item.userData?.playbackPositionTicks ?: 0
                 val durationTicks = item.runTimeTicks ?: 0
                 val positionMs = positionTicks / 10_000
-                if (positionMs > 30_000 && durationTicks > 0 && positionTicks < durationTicks * 9 / 10) {
+                val notNearEnd = durationTicks == 0L || positionTicks < durationTicks * 9 / 10
+                if (positionMs > 0 && notNearEnd) {
                     player.seekTo(positionMs)
-                    player.pause()
-                    _uiState.value = _uiState.value.copy(
-                        showResumePrompt = true,
-                        resumePositionMs = positionMs
-                    )
-                } else {
-                    if (positionMs > 0 && (durationTicks == 0L || positionTicks < durationTicks * 9 / 10)) {
-                        player.seekTo(positionMs)
-                    }
-                    player.play()
                 }
+                player.play()
             } ?: run {
                 player.play()
             }
@@ -221,18 +212,6 @@ class PlayerViewModel(
                 introTimestamps = timestamps
             }
         }
-    }
-
-    fun resumeFromPosition() {
-        player.seekTo(_uiState.value.resumePositionMs)
-        player.play()
-        _uiState.value = _uiState.value.copy(showResumePrompt = false)
-    }
-
-    fun startFromBeginning() {
-        player.seekTo(0)
-        player.play()
-        _uiState.value = _uiState.value.copy(showResumePrompt = false)
     }
 
     fun skipIntro() {
@@ -410,12 +389,17 @@ class PlayerViewModel(
         _uiState.value = _uiState.value.copy(showSpeedDialog = true)
     }
 
+    fun showMoreSheet() {
+        _uiState.value = _uiState.value.copy(showMoreSheet = true)
+    }
+
     fun dismissDialogs() {
         _uiState.value = _uiState.value.copy(
             showTrackDialog = null,
             showSpeedDialog = false,
             showSleepTimerDialog = false,
-            showQualityDialog = false
+            showQualityDialog = false,
+            showMoreSheet = false
         )
     }
 
@@ -579,8 +563,6 @@ class PlayerViewModel(
             upNextCountdown = 30,
             showSkipIntro = false,
             showSkipCredits = false,
-            showResumePrompt = false,
-            resumePositionMs = 0L,
             audioTracks = emptyList(),
             subtitleTracks = emptyList(),
             selectedAudioIndex = -1,
